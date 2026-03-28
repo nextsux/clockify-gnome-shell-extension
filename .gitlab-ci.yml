@@ -20,10 +20,9 @@ lint:eslint:
   stage: lint
   image: node:lts-alpine
   before_script:
-    - npm install -g eslint
+    - npm ci
   script:
-    - eslint extension.js prefs.js --env=es2022
-  allow_failure: true   # advisory until ESLint config is tuned
+    - npx eslint extension.js prefs.js
 
 # ── Build ─────────────────────────────────────────────────────────────────────
 

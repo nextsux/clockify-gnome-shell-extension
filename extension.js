@@ -340,7 +340,7 @@ class ClockifyIndicator extends PanelMenu.Button {
                 `/workspaces/${wid}/user/${uid}/time-entries?in-progress=true`);
             this._currentEntry = (entries && entries.length > 0) ? entries[0] : null;
             this._refreshPanelLabel();
-        } catch (_e) { /* silent on startup */ }
+        } catch { /* silent on startup */ }
     }
 
     async _loadTodaysEntries() {
@@ -412,7 +412,7 @@ class ClockifyIndicator extends PanelMenu.Button {
             await this._apiRequest('PATCH',
                 `/workspaces/${wid}/user/${uid}/time-entries`,
                 { end: new Date().toISOString() });
-        } catch (_e) { /* ignore */ }
+        } catch { /* ignore */ }
         this._currentEntry = null;
     }
 
