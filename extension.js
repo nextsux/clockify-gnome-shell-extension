@@ -1,603 +1,518 @@
 /* extension.js
  *
  * Clockify Time Tracker for GNOME Shell
- * A time tracking extension that integrates with Clockify API
+ * Mimics the Hamster time tracker extension UX
  */
 
-import GObject from "gi://GObject";
-import St from "gi://St";
-import Gio from "gi://Gio";
-import Soup from "gi://Soup";
-import Clutter from "gi://Clutter";
-import * as Main from "resource:///org/gnome/shell/ui/main.js";
-import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
-import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
-import * as ModalDialog from "resource:///org/gnome/shell/ui/modalDialog.js";
-import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
+import GObject from 'gi://GObject';
+import GLib from 'gi://GLib';
+import St from 'gi://St';
+import Soup from 'gi://Soup';
+import Clutter from 'gi://Clutter';
+import Shell from 'gi://Shell';
+import Meta from 'gi://Meta';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
+import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
+import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
 
-const CLOCKIFY_API_URL = "https://api.clockify.me/api/v1";
+const CLOCKIFY_API_URL = 'https://api.clockify.me/api/v1';
 
-const SettingsDialog = GObject.registerClass(
-  class SettingsDialog extends ModalDialog.ModalDialog {
-    _init(settings) {
-      super._init({ styleClass: "extension-dialog" });
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-      this._settings = settings;
+function formatDuration(totalSeconds) {
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
 
-      let content = new St.BoxLayout({
-        vertical: true,
-        style: "padding: 20px; spacing: 15px;",
-      });
+function formatDurationHuman(totalSeconds) {
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    if (h === 0 && m === 0) return 'Just started';
+    return `${h > 0 ? h + 'h ' : ''}${m > 0 ? m + 'min' : ''}`.trim();
+}
 
-      // Title
-      let title = new St.Label({
-        text: "Clockify Settings",
-        style: "font-weight: bold; font-size: 14pt; margin-bottom: 10px;",
-      });
-      content.add_child(title);
+function elapsedSeconds(isoStart) {
+    return Math.floor((Date.now() - new Date(isoStart).getTime()) / 1000);
+}
 
-      // API Key section
-      let apiKeyLabel = new St.Label({
-        text: "API Key:",
-        style: "font-weight: bold;",
-      });
-      content.add_child(apiKeyLabel);
+function todayStartISO() {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString();
+}
 
-      this._apiKeyEntry = new St.Entry({
-        hint_text: "Enter your Clockify API key",
-        text: settings.get_string("api-key"),
-        style: "width: 400px;",
-      });
-      content.add_child(this._apiKeyEntry);
+// ─── ActivityEntry ────────────────────────────────────────────────────────────
+//
+// St.Entry subclass that provides inline typeahead autocomplete against a list
+// of known activity descriptions.  Mirrors the OngoingFactEntry from Hamster.
 
-      let apiKeyHelp = new St.Label({
-        text: "Get your API key from: Profile Settings → API",
-        style: "font-size: 9pt; color: #888;",
-      });
-      content.add_child(apiKeyHelp);
-
-      // Workspace ID section
-      let workspaceLabel = new St.Label({
-        text: "Workspace ID:",
-        style: "font-weight: bold; margin-top: 10px;",
-      });
-      content.add_child(workspaceLabel);
-
-      this._workspaceEntry = new St.Entry({
-        hint_text: "Enter your workspace ID",
-        text: settings.get_string("workspace-id"),
-        style: "width: 400px;",
-      });
-      content.add_child(this._workspaceEntry);
-
-      let workspaceHelp = new St.Label({
-        text: 'Or click "Fetch Workspaces" after entering API key',
-        style: "font-size: 9pt; color: #888;",
-      });
-      content.add_child(workspaceHelp);
-
-      // Fetch workspaces button
-      this._fetchButton = new St.Button({
-        label: "Fetch Workspaces",
-        style_class: "button",
-        style: "margin-top: 5px;",
-      });
-      this._fetchButton.connect("clicked", () => this._fetchWorkspaces());
-      content.add_child(this._fetchButton);
-
-      // Workspace dropdown (hidden initially)
-      this._workspaceBox = new St.BoxLayout({
-        vertical: true,
-        visible: false,
-        style: "margin-top: 10px;",
-      });
-      content.add_child(this._workspaceBox);
-
-      this.contentLayout.add_child(content);
-
-      // Buttons
-      this.setButtons([
-        {
-          label: "Cancel",
-          action: () => this.close(),
-          key: Clutter.KEY_Escape,
-        },
-        {
-          label: "Save",
-          action: () => this._save(),
-          default: true,
-        },
-      ]);
-    }
-
-    async _fetchWorkspaces() {
-      const apiKey = this._apiKeyEntry.get_text();
-
-      if (!apiKey) {
-        Main.notify("Clockify", "Please enter an API key first");
-        return;
-      }
-
-      try {
-        const session = new Soup.Session();
-        const message = Soup.Message.new(
-          "GET",
-          `${CLOCKIFY_API_URL}/workspaces`,
-        );
-        message.request_headers.append("X-Api-Key", apiKey);
-
-        const bytes = await session.send_and_read_async(
-          message,
-          GLib.PRIORITY_DEFAULT,
-          null,
-        );
-
-        const decoder = new TextDecoder("utf-8");
-        const workspaces = JSON.parse(decoder.decode(bytes.get_data()));
-
-        this._workspaceBox.destroy_all_children();
-
-        let label = new St.Label({
-          text: "Select Workspace:",
-          style: "font-weight: bold; margin-bottom: 5px;",
+const ActivityEntry = GObject.registerClass(
+class ActivityEntry extends St.Entry {
+    _init(getActivities) {
+        super._init({
+            name: 'searchEntry',
+            can_focus: true,
+            track_hover: true,
+            hint_text: 'Enter activity\u2026',
+            style_class: 'search-entry',
         });
-        this._workspaceBox.add_child(label);
+        this._getActivities = getActivities;
+        this._prevText = '';
+        this.clutter_text.connect('key-release-event', this._onKeyRelease.bind(this));
+    }
 
-        workspaces.forEach((ws) => {
-          let btn = new St.Button({
-            label: ws.name,
-            style_class: "button",
-            style: "margin: 2px; text-align: left;",
-          });
-          btn.connect("clicked", () => {
-            this._workspaceEntry.set_text(ws.id);
-            this._workspaceBox.visible = false;
-          });
-          this._workspaceBox.add_child(btn);
+    _onKeyRelease(_actor, evt) {
+        const symbol = evt.get_key_symbol();
+        // Keys that should not trigger autocomplete
+        const ignored = [
+            Clutter.KEY_BackSpace, Clutter.KEY_Delete,   Clutter.KEY_Escape,
+            Clutter.KEY_Return,    Clutter.KEY_KP_Enter,  Clutter.KEY_Tab,
+            Clutter.KEY_Up,        Clutter.KEY_Down,
+        ];
+        if (ignored.includes(symbol)) return;
+
+        const text = this.get_text();
+        if (!text) return;
+        // If text unchanged or there's already a selection in progress, skip
+        if (text.toLowerCase() === this._prevText) return;
+        if (this.clutter_text.get_selection()) return;
+
+        this._prevText = text.toLowerCase();
+
+        for (const activity of this._getActivities()) {
+            if (activity.toLowerCase().startsWith(text.toLowerCase())) {
+                this.set_text(activity);
+                // Select the completed portion so typing replaces it
+                this.get_clutter_text().set_selection(text.length, activity.length);
+                this._prevText = activity.toLowerCase();
+                break;
+            }
+        }
+    }
+});
+
+// ─── TodaysEntriesWidget ──────────────────────────────────────────────────────
+//
+// Scrollable grid of today's time entries.  Each row shows the time range,
+// description, human duration, and a ▶ continue button (omitted when the entry
+// matches the currently-running one).  Mirrors TodaysFactsWidget from Hamster.
+
+const TodaysEntriesWidget = GObject.registerClass(
+class TodaysEntriesWidget extends St.ScrollView {
+    _init(onContinue) {
+        super._init({ style_class: 'hamster-scrollbox' });
+        this._onContinue = onContinue;
+
+        this._grid = new St.Widget({
+            style_class: 'hamster-activities',
+            layout_manager: new Clutter.GridLayout(),
+            reactive: true,
         });
-
-        this._workspaceBox.visible = true;
-      } catch (e) {
-        Main.notify(
-          "Clockify Error",
-          `Failed to fetch workspaces: ${e.message}`,
-        );
-      }
+        const box = new St.BoxLayout({ vertical: true });
+        box.add_child(this._grid);
+        this.add_child(box);
     }
 
-    _save() {
-      const apiKey = this._apiKeyEntry.get_text();
-      const workspaceId = this._workspaceEntry.get_text();
+    // entries: Clockify API time-entry objects (newest-first from API)
+    // currentEntry: the in-progress entry or null
+    refresh(entries, currentEntry) {
+        this._grid.remove_all_children();
+        const layout = this._grid.layout_manager;
 
-      this._settings.set_string("api-key", apiKey);
-      this._settings.set_string("workspace-id", workspaceId);
+        // Reverse to chronological order (oldest → newest, newest at bottom)
+        const sorted = [...entries].reverse();
 
-      Main.notify("Clockify", "Settings saved successfully");
-      this.close();
+        sorted.forEach((entry, row) => {
+            const start = new Date(entry.timeInterval.start);
+            const sh = String(start.getHours()).padStart(2, '0');
+            const sm = String(start.getMinutes()).padStart(2, '0');
+
+            let timeStr, secs;
+            if (entry.timeInterval.end) {
+                const end = new Date(entry.timeInterval.end);
+                const eh  = String(end.getHours()).padStart(2, '0');
+                const em  = String(end.getMinutes()).padStart(2, '0');
+                timeStr = `${sh}:${sm} - ${eh}:${em}`;
+                secs = Math.floor((end - start) / 1000);
+            } else {
+                timeStr = `${sh}:${sm} \u2013`;   // en-dash for running entry
+                secs = Math.floor((Date.now() - start) / 1000);
+            }
+
+            const timeLabel = new St.Label({ style_class: 'cell-label', text: timeStr });
+            const descLabel = new St.Label({
+                style_class: 'cell-label',
+                text: entry.description || '(no description)',
+            });
+            const durLabel = new St.Label({
+                style_class: 'cell-label',
+                text: formatDurationHuman(secs),
+            });
+
+            layout.attach(timeLabel, 0, row, 1, 1);
+            layout.attach(descLabel, 1, row, 1, 1);
+            layout.attach(durLabel,  2, row, 1, 1);
+
+            // Continue button — only when this entry differs from the current one
+            const isCurrent = currentEntry &&
+                currentEntry.description === entry.description &&
+                (currentEntry.projectId || null) === (entry.projectId || null);
+
+            if (!isCurrent) {
+                const icon = new St.Icon({
+                    icon_name: 'media-playback-start-symbolic',
+                    icon_size: 16,
+                });
+                const btn = new St.Button({ style_class: 'clickable cell-button' });
+                btn.set_child(icon);
+                btn.connect('clicked', () => this._onContinue(entry));
+                layout.attach(btn, 3, row, 1, 1);
+            }
+        });
     }
-  },
-);
+});
 
-const TaskDialog = GObject.registerClass(
-  class TaskDialog extends ModalDialog.ModalDialog {
-    _init(callback) {
-      super._init({ styleClass: "extension-dialog" });
-
-      this._callback = callback;
-
-      let content = new St.BoxLayout({
-        vertical: true,
-        style: "padding: 20px; spacing: 15px;",
-      });
-
-      let title = new St.Label({
-        text: "Start New Task",
-        style: "font-weight: bold; font-size: 14pt; margin-bottom: 10px;",
-      });
-      content.add_child(title);
-
-      let label = new St.Label({
-        text: "Task Description:",
-        style: "font-weight: bold;",
-      });
-      content.add_child(label);
-
-      this._taskEntry = new St.Entry({
-        hint_text: "What are you working on?",
-        style: "width: 400px;",
-      });
-      content.add_child(this._taskEntry);
-
-      this.contentLayout.add_child(content);
-
-      this.setButtons([
-        {
-          label: "Cancel",
-          action: () => this.close(),
-          key: Clutter.KEY_Escape,
-        },
-        {
-          label: "Start",
-          action: () => this._start(),
-          default: true,
-        },
-      ]);
-
-      // Focus the entry
-      this._taskEntry.grab_key_focus();
-    }
-
-    _start() {
-      const description = this._taskEntry.get_text() || "New Task";
-      this._callback(description);
-      this.close();
-    }
-  },
-);
+// ─── ClockifyIndicator ────────────────────────────────────────────────────────
 
 const ClockifyIndicator = GObject.registerClass(
-  class ClockifyIndicator extends PanelMenu.Button {
-    _init(settings) {
-      super._init(0.0, "Clockify Time Tracker");
+class ClockifyIndicator extends PanelMenu.Button {
+    _init(settings, openPrefs) {
+        super._init(0.0, 'Clockify Time Tracker');
 
-      this._settings = settings;
-      this._session = new Soup.Session();
-      this._currentTimer = null;
-      this._updateInterval = null;
+        this._settings     = settings;
+        this._openPrefs    = openPrefs;
+        this._session      = new Soup.Session();
+        this._currentEntry = null;    // in-progress Clockify time entry
+        this._userId       = null;    // cached user id
+        this._activities   = [];      // descriptions used for autocomplete
+        this._refreshTimeout = null;
 
-      // Create panel button
-      let box = new St.BoxLayout({ style_class: "panel-status-menu-box" });
-      this._icon = new St.Icon({
-        icon_name: "media-playback-start-symbolic",
-        style_class: "system-status-icon",
-      });
-      this._label = new St.Label({
-        text: "00:00",
-        y_align: Clutter.ActorAlign.CENTER,
-      });
+        // ── Panel label / icon ──
+        const box = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
+        this._panelIcon = new St.Icon({
+            icon_name: 'preferences-system-time-symbolic',
+            style_class: 'system-status-icon',
+        });
+        this._panelLabel = new St.Label({
+            text: 'No activity',
+            y_align: Clutter.ActorAlign.CENTER,
+        });
+        box.add_child(this._panelIcon);
+        box.add_child(this._panelLabel);
+        this.add_child(box);
 
-      box.add_child(this._icon);
-      box.add_child(this._label);
-      this.add_child(box);
+        this._buildMenu();
 
-      // Build menu
-      this._buildMenu();
+        // Focus entry and refresh when menu opens
+        this.menu.connect('open-state-changed', (_menu, open) => {
+            if (open) {
+                this._onMenuOpen();
+            } else {
+                global.stage.set_key_focus(null);
+            }
+        });
 
-      // Load current timer
-      this._loadCurrentTimer();
+        // Update elapsed time display every 60 s (same interval as Hamster)
+        this._refreshTimeout = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 60, () => {
+            this._refreshPanelLabel();
+            return GLib.SOURCE_CONTINUE;
+        });
+
+        this._loadCurrentEntry();
     }
+
+    // ── Menu construction ─────────────────────────────────────────────────────
 
     _buildMenu() {
-      // Current task display
-      this._currentTaskItem = new PopupMenu.PopupMenuItem("No active task", {
-        reactive: false,
-      });
-      this._currentTaskItem.label.style = "font-style: italic;";
-      this.menu.addMenuItem(this._currentTaskItem);
+        // FactsBox: "What are you working on?" entry + today's list
+        const factBoxItem = new PopupMenu.PopupBaseMenuItem({ reactive: false });
+        const mainBox = new St.BoxLayout({ vertical: true, style_class: 'hamster-box' });
+        factBoxItem.add_child(mainBox);
 
-      this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        mainBox.add_child(new St.Label({
+            style_class: 'hamster-box-label',
+            text: 'What are you working on?',
+        }));
 
-      // Start/Stop timer
-      this._timerButton = new PopupMenu.PopupMenuItem("Start Timer");
-      this._timerButton.connect("activate", () => this._toggleTimer());
-      this.menu.addMenuItem(this._timerButton);
+        this._activityEntry = new ActivityEntry(() => this._activities);
+        this._activityEntry.clutter_text.connect('activate', () => this._onEntryActivated());
+        mainBox.add_child(this._activityEntry);
 
-      this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        mainBox.add_child(new St.Label({
+            style_class: 'hamster-box-label',
+            text: "Today's activities",
+        }));
 
-      // Recent entries section
-      let recentLabel = new PopupMenu.PopupMenuItem("Recent Entries", {
-        reactive: false,
-      });
-      recentLabel.label.style = "font-weight: bold;";
-      this.menu.addMenuItem(recentLabel);
+        this._todaysWidget = new TodaysEntriesWidget(e => this._continueEntry(e));
+        mainBox.add_child(this._todaysWidget);
 
-      this._recentSection = new PopupMenu.PopupMenuSection();
-      this.menu.addMenuItem(this._recentSection);
+        this._totalLabel = new St.Label({ style_class: 'summary-label', text: '' });
+        mainBox.add_child(this._totalLabel);
 
-      // Refresh button
-      let refreshItem = new PopupMenu.PopupMenuItem("↻ Refresh");
-      refreshItem.connect("activate", () => this._loadRecentEntries());
-      this.menu.addMenuItem(refreshItem);
+        this.menu.addMenuItem(factBoxItem);
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-      this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        // Stop Tracking
+        this._stopItem = new PopupMenu.PopupMenuItem('Stop Tracking');
+        this._stopItem.connect('activate', () => this._stopTimer());
+        this.menu.addMenuItem(this._stopItem);
 
-      // Settings button
-      let settingsItem = new PopupMenu.PopupMenuItem("⚙ Settings");
-      settingsItem.connect("activate", () => this._showSettings());
-      this.menu.addMenuItem(settingsItem);
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        // Settings
+        const settingsItem = new PopupMenu.PopupMenuItem('Extension Settings');
+        settingsItem.connect('activate', () => this._openPrefs());
+        this.menu.addMenuItem(settingsItem);
     }
 
-    _showSettings() {
-      let dialog = new SettingsDialog(this._settings);
-      dialog.open();
-    }
+    // ── Menu open ─────────────────────────────────────────────────────────────
 
-    async _toggleTimer() {
-      if (this._currentTimer) {
-        await this._stopTimer();
-      } else {
-        // Show task dialog
-        let dialog = new TaskDialog((description) => {
-          this._startTimer(description);
+    _onMenuOpen() {
+        this._loadTodaysEntries();
+        // Delay focus slightly so the menu finishes opening
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 20, () => {
+            global.stage.set_key_focus(this._activityEntry);
+            // Scroll to bottom so the most recent entry is visible (Hamster behaviour)
+            const adj = this._todaysWidget.vadjustment;
+            if (adj) adj.value = adj.upper;
+            return GLib.SOURCE_REMOVE;
         });
-        dialog.open();
-      }
     }
 
-    async _startTimer(description = "New Task") {
-      const apiKey = this._settings.get_string("api-key");
-      const workspaceId = this._settings.get_string("workspace-id");
+    // ── Entry activation (press Enter) ────────────────────────────────────────
 
-      if (!apiKey || !workspaceId) {
-        Main.notify("Clockify", "Please configure settings first");
-        this._showSettings();
-        return;
-      }
+    async _onEntryActivated() {
+        const text = this._activityEntry.get_text().trim();
+        if (!text) return;
+        this._activityEntry.set_text('');
+        this._activityEntry._prevText = '';
+        await this._startTimer(text, null);
+        this.menu.close();
+    }
 
-      try {
-        const userId = await this._getUserId(apiKey);
+    // ── Continue a past entry ─────────────────────────────────────────────────
 
-        const message = Soup.Message.new(
-          "POST",
-          `${CLOCKIFY_API_URL}/workspaces/${workspaceId}/time-entries`,
-        );
+    async _continueEntry(entry) {
+        await this._startTimer(entry.description || '', entry.projectId || null);
+        this.menu.close();
+    }
 
-        message.request_headers.append("X-Api-Key", apiKey);
-        message.request_headers.append("Content-Type", "application/json");
+    // ── Clockify API helpers ──────────────────────────────────────────────────
 
-        const body = {
-          start: new Date().toISOString(),
-          description: description,
-        };
+    async _apiRequest(method, path, body = null) {
+        const apiKey = this._settings.get_string('api-key');
+        if (!apiKey) throw new Error('No API key \u2014 open Extension Settings to configure');
 
-        message.set_request_body_from_bytes(
-          "application/json",
-          new GLib.Bytes(JSON.stringify(body)),
-        );
+        const msg = Soup.Message.new(method, `${CLOCKIFY_API_URL}${path}`);
+        msg.request_headers.append('X-Api-Key', apiKey);
+
+        if (body !== null) {
+            const encoded = new TextEncoder().encode(JSON.stringify(body));
+            msg.set_request_body_from_bytes('application/json', new GLib.Bytes(encoded));
+        }
 
         const bytes = await this._session.send_and_read_async(
-          message,
-          GLib.PRIORITY_DEFAULT,
-          null,
-        );
+            msg, GLib.PRIORITY_DEFAULT, null);
+        const status = msg.get_status();
+        if (status < 200 || status >= 300)
+            throw new Error(`HTTP ${status} \u2014 ${method} ${path}`);
 
-        const decoder = new TextDecoder("utf-8");
-        const response = JSON.parse(decoder.decode(bytes.get_data()));
+        return JSON.parse(new TextDecoder().decode(bytes.get_data()));
+    }
 
-        this._currentTimer = response;
-        this._updateTimerDisplay();
-        this._startUpdateInterval();
+    async _ensureUserId() {
+        if (this._userId) return this._userId;
+        const user = await this._apiRequest('GET', '/user');
+        this._userId = user.id;
+        return this._userId;
+    }
 
-        this._timerButton.label.text = "Stop Timer";
-        this._icon.icon_name = "media-playback-stop-symbolic";
-        this._currentTaskItem.label.text = `▶ ${description}`;
-        this._currentTaskItem.label.style =
-          "font-weight: bold; color: #4CAF50;";
-      } catch (e) {
-        Main.notify("Clockify Error", `Failed to start timer: ${e.message}`);
-      }
+    // ── Data loading ──────────────────────────────────────────────────────────
+
+    async _loadCurrentEntry() {
+        const apiKey = this._settings.get_string('api-key');
+        const wid    = this._settings.get_string('workspace-id');
+        if (!apiKey || !wid) return;
+        try {
+            const uid     = await this._ensureUserId();
+            const entries = await this._apiRequest('GET',
+                `/workspaces/${wid}/user/${uid}/time-entries?in-progress=true`);
+            this._currentEntry = (entries && entries.length > 0) ? entries[0] : null;
+            this._refreshPanelLabel();
+        } catch (_e) { /* silent on startup */ }
+    }
+
+    async _loadTodaysEntries() {
+        const apiKey = this._settings.get_string('api-key');
+        const wid    = this._settings.get_string('workspace-id');
+        if (!apiKey || !wid) return;
+        try {
+            const uid   = await this._ensureUserId();
+            const start = encodeURIComponent(todayStartISO());
+            const entries = await this._apiRequest('GET',
+                `/workspaces/${wid}/user/${uid}/time-entries?start=${start}&page-size=50`);
+
+            this._todaysWidget.refresh(entries || [], this._currentEntry);
+
+            // Build autocomplete list: unique descriptions, most-recent first
+            const seen = new Set();
+            this._activities = [];
+            for (const e of (entries || [])) {
+                if (e.description && !seen.has(e.description)) {
+                    seen.add(e.description);
+                    this._activities.push(e.description);
+                }
+            }
+
+            // Total time label
+            let totalSecs = 0;
+            for (const e of (entries || [])) {
+                if (e.timeInterval.end) {
+                    totalSecs += Math.floor(
+                        (new Date(e.timeInterval.end) - new Date(e.timeInterval.start)) / 1000);
+                }
+            }
+            if (this._currentEntry)
+                totalSecs += elapsedSeconds(this._currentEntry.timeInterval.start);
+            this._totalLabel.set_text(totalSecs > 0 ? `Total: ${formatDuration(totalSecs)}` : '');
+        } catch (e) {
+            Main.notify('Clockify Error', `Failed to load entries: ${e.message}`);
+        }
+    }
+
+    // ── Timer control ─────────────────────────────────────────────────────────
+
+    async _startTimer(description, projectId) {
+        const apiKey = this._settings.get_string('api-key');
+        const wid    = this._settings.get_string('workspace-id');
+        if (!apiKey || !wid) {
+            Main.notify('Clockify', 'Please configure API key and workspace in Extension Settings');
+            return;
+        }
+        // Stop whatever is running first (same as Hamster's AddFact replacing ongoing fact)
+        if (this._currentEntry) await this._stopTimerSilent();
+        try {
+            const body = { start: new Date().toISOString(), description };
+            if (projectId) body.projectId = projectId;
+            const entry = await this._apiRequest('POST',
+                `/workspaces/${wid}/time-entries`, body);
+            this._currentEntry = entry;
+            this._refreshPanelLabel();
+            this._loadTodaysEntries();
+        } catch (e) {
+            Main.notify('Clockify Error', `Failed to start timer: ${e.message}`);
+        }
+    }
+
+    async _stopTimerSilent() {
+        try {
+            const wid = this._settings.get_string('workspace-id');
+            const uid = await this._ensureUserId();
+            await this._apiRequest('PATCH',
+                `/workspaces/${wid}/user/${uid}/time-entries`,
+                { end: new Date().toISOString() });
+        } catch (_e) { /* ignore */ }
+        this._currentEntry = null;
     }
 
     async _stopTimer() {
-      const apiKey = this._settings.get_string("api-key");
-      const workspaceId = this._settings.get_string("workspace-id");
-
-      if (!this._currentTimer) return;
-
-      try {
-        const userId = await this._getUserId(apiKey);
-
-        const message = Soup.Message.new(
-          "PATCH",
-          `${CLOCKIFY_API_URL}/workspaces/${workspaceId}/user/${userId}/time-entries`,
-        );
-
-        message.request_headers.append("X-Api-Key", apiKey);
-        message.request_headers.append("Content-Type", "application/json");
-
-        const body = {
-          end: new Date().toISOString(),
-        };
-
-        message.set_request_body_from_bytes(
-          "application/json",
-          new GLib.Bytes(JSON.stringify(body)),
-        );
-
-        await this._session.send_and_read_async(
-          message,
-          GLib.PRIORITY_DEFAULT,
-          null,
-        );
-
-        this._currentTimer = null;
-        this._stopUpdateInterval();
-        this._label.text = "00:00";
-        this._timerButton.label.text = "Start Timer";
-        this._icon.icon_name = "media-playback-start-symbolic";
-        this._currentTaskItem.label.text = "No active task";
-        this._currentTaskItem.label.style = "font-style: italic;";
-
-        this._loadRecentEntries();
-      } catch (e) {
-        Main.notify("Clockify Error", `Failed to stop timer: ${e.message}`);
-      }
-    }
-
-    async _getUserId(apiKey) {
-      const message = Soup.Message.new("GET", `${CLOCKIFY_API_URL}/user`);
-      message.request_headers.append("X-Api-Key", apiKey);
-
-      const bytes = await this._session.send_and_read_async(
-        message,
-        GLib.PRIORITY_DEFAULT,
-        null,
-      );
-
-      const decoder = new TextDecoder("utf-8");
-      const user = JSON.parse(decoder.decode(bytes.get_data()));
-
-      return user.id;
-    }
-
-    async _loadCurrentTimer() {
-      const apiKey = this._settings.get_string("api-key");
-      const workspaceId = this._settings.get_string("workspace-id");
-
-      if (!apiKey || !workspaceId) return;
-
-      try {
-        const userId = await this._getUserId(apiKey);
-
-        const message = Soup.Message.new(
-          "GET",
-          `${CLOCKIFY_API_URL}/workspaces/${workspaceId}/user/${userId}/time-entries?in-progress=true`,
-        );
-
-        message.request_headers.append("X-Api-Key", apiKey);
-
-        const bytes = await this._session.send_and_read_async(
-          message,
-          GLib.PRIORITY_DEFAULT,
-          null,
-        );
-
-        const decoder = new TextDecoder("utf-8");
-        const entries = JSON.parse(decoder.decode(bytes.get_data()));
-
-        if (entries && entries.length > 0) {
-          this._currentTimer = entries[0];
-          this._updateTimerDisplay();
-          this._startUpdateInterval();
-          this._timerButton.label.text = "Stop Timer";
-          this._icon.icon_name = "media-playback-stop-symbolic";
-          this._currentTaskItem.label.text = `▶ ${this._currentTimer.description || "No description"}`;
-          this._currentTaskItem.label.style =
-            "font-weight: bold; color: #4CAF50;";
+        if (!this._currentEntry) return;
+        try {
+            const wid = this._settings.get_string('workspace-id');
+            const uid = await this._ensureUserId();
+            await this._apiRequest('PATCH',
+                `/workspaces/${wid}/user/${uid}/time-entries`,
+                { end: new Date().toISOString() });
+            this._currentEntry = null;
+            this._refreshPanelLabel();
+            this._loadTodaysEntries();
+        } catch (e) {
+            Main.notify('Clockify Error', `Failed to stop timer: ${e.message}`);
         }
-
-        this._loadRecentEntries();
-      } catch (e) {
-        // Silently fail on startup
-      }
     }
 
-    async _loadRecentEntries() {
-      const apiKey = this._settings.get_string("api-key");
-      const workspaceId = this._settings.get_string("workspace-id");
+    // ── Panel label update ────────────────────────────────────────────────────
 
-      if (!apiKey || !workspaceId) return;
+    _refreshPanelLabel() {
+        const appearance = this._settings.get_int('panel-appearance');
+        // 0 = label only, 1 = icon only, 2 = icon + label
 
-      try {
-        const userId = await this._getUserId(apiKey);
-
-        const message = Soup.Message.new(
-          "GET",
-          `${CLOCKIFY_API_URL}/workspaces/${workspaceId}/user/${userId}/time-entries?page-size=5`,
-        );
-
-        message.request_headers.append("X-Api-Key", apiKey);
-
-        const bytes = await this._session.send_and_read_async(
-          message,
-          GLib.PRIORITY_DEFAULT,
-          null,
-        );
-
-        const decoder = new TextDecoder("utf-8");
-        const entries = JSON.parse(decoder.decode(bytes.get_data()));
-
-        this._recentSection.removeAll();
-
-        if (entries.length === 0) {
-          let emptyItem = new PopupMenu.PopupMenuItem("No recent entries", {
-            reactive: false,
-          });
-          emptyItem.label.style = "font-style: italic; color: #888;";
-          this._recentSection.addMenuItem(emptyItem);
+        if (this._currentEntry) {
+            const secs = elapsedSeconds(this._currentEntry.timeInterval.start);
+            const desc = this._currentEntry.description || 'Tracking';
+            const text = `${desc} ${formatDuration(secs)}`;
+            this._panelIcon.icon_name = 'media-record-symbolic';
+            switch (appearance) {
+            case 1:
+                this._panelIcon.show();
+                this._panelLabel.hide();
+                break;
+            case 2:
+                this._panelIcon.show();
+                this._panelLabel.set_text(text);
+                this._panelLabel.show();
+                break;
+            default: // 0
+                this._panelIcon.hide();
+                this._panelLabel.set_text(text);
+                this._panelLabel.show();
+            }
         } else {
-          entries.forEach((entry) => {
-            if (!entry.timeInterval.end) return; // Skip running timer
-
-            const duration = this._formatDuration(entry.timeInterval);
-            const desc = entry.description || "No description";
-            const item = new PopupMenu.PopupMenuItem(`${desc} (${duration})`, {
-              reactive: false,
-            });
-            item.label.style = "font-size: 9.5pt;";
-            this._recentSection.addMenuItem(item);
-          });
+            this._panelIcon.icon_name = 'preferences-system-time-symbolic';
+            switch (appearance) {
+            case 1:
+                this._panelIcon.show();
+                this._panelLabel.hide();
+                break;
+            case 2:
+                this._panelIcon.show();
+                this._panelLabel.set_text('No activity');
+                this._panelLabel.show();
+                break;
+            default: // 0
+                this._panelIcon.hide();
+                this._panelLabel.set_text('No activity');
+                this._panelLabel.show();
+            }
         }
-      } catch (e) {
-        Main.notify("Clockify Error", `Failed to load entries: ${e.message}`);
-      }
     }
 
-    _updateTimerDisplay() {
-      if (!this._currentTimer) return;
-
-      const start = new Date(this._currentTimer.timeInterval.start);
-      const now = new Date();
-      const diff = Math.floor((now - start) / 1000);
-
-      const hours = Math.floor(diff / 3600);
-      const minutes = Math.floor((diff % 3600) / 60);
-
-      this._label.text = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-    }
-
-    _formatDuration(timeInterval) {
-      const start = new Date(timeInterval.start);
-      const end = timeInterval.end ? new Date(timeInterval.end) : new Date();
-      const diff = Math.floor((end - start) / 1000);
-
-      const hours = Math.floor(diff / 3600);
-      const minutes = Math.floor((diff % 3600) / 60);
-
-      return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-    }
-
-    _startUpdateInterval() {
-      if (this._updateInterval) return;
-
-      this._updateInterval = GLib.timeout_add_seconds(
-        GLib.PRIORITY_DEFAULT,
-        60,
-        () => {
-          this._updateTimerDisplay();
-          return GLib.SOURCE_CONTINUE;
-        },
-      );
-    }
-
-    _stopUpdateInterval() {
-      if (this._updateInterval) {
-        GLib.Source.remove(this._updateInterval);
-        this._updateInterval = null;
-      }
-    }
+    // ── Cleanup ───────────────────────────────────────────────────────────────
 
     destroy() {
-      this._stopUpdateInterval();
-      super.destroy();
+        if (this._refreshTimeout) {
+            GLib.source_remove(this._refreshTimeout);
+            this._refreshTimeout = null;
+        }
+        super.destroy();
     }
-  },
-);
+});
+
+// ─── ClockifyExtension ────────────────────────────────────────────────────────
 
 export default class ClockifyExtension extends Extension {
-  enable() {
-    this._settings = this.getSettings(
-      "org.gnome.shell.extensions.clockify-tracker",
-    );
-    this._indicator = new ClockifyIndicator(this._settings);
-    Main.panel.addToStatusArea("clockify-indicator", this._indicator);
-  }
+    enable() {
+        this._settings  = this.getSettings('org.gnome.shell.extensions.clockify-tracker');
+        this._indicator = new ClockifyIndicator(this._settings, () => this.openPreferences());
+        Main.panel.addToStatusArea('clockify-indicator', this._indicator);
 
-  disable() {
-    if (this._indicator) {
-      this._indicator.destroy();
-      this._indicator = null;
+        // Global keybinding — default <Super>t, configurable in prefs
+        Main.wm.addKeybinding(
+            'show-clockify-dropdown',
+            this._settings,
+            Meta.KeyBindingFlags.NONE,
+            Shell.ActionMode.ALL,
+            () => this._indicator.menu.toggle()
+        );
     }
-    this._settings = null;
-  }
+
+    disable() {
+        Main.wm.removeKeybinding('show-clockify-dropdown');
+        if (this._indicator) {
+            this._indicator.destroy();
+            this._indicator = null;
+        }
+        this._settings = null;
+    }
 }

@@ -1,0 +1,62 @@
+/* stylesheet.css — Clockify Time Tracker GNOME Shell Extension */
+
+/* ── Dropdown container ─────────────────────────────────────────────────────── */
+
+.hamster-box {
+    padding: 6px 8px;
+    spacing: 8px;
+}
+
+.hamster-box-label {
+    font-weight: bold;
+    padding: 4px 2px 2px 2px;
+    color: alpha(white, 0.55);
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* ── Today's activities scroll area ─────────────────────────────────────────── */
+
+.hamster-scrollbox {
+    max-height: 320px;
+    min-width: 520px;
+}
+
+/* ── Activity grid ──────────────────────────────────────────────────────────── */
+
+.hamster-activities {
+    padding: 2px 0;
+}
+
+/* Each cell in the grid */
+.cell-label {
+    padding: 3px 10px 3px 2px;
+    font-size: 0.95em;
+}
+
+/* ── Continue / action buttons ──────────────────────────────────────────────── */
+
+.cell-button {
+    padding: 2px 5px;
+    border-radius: 5px;
+    border: none;
+    background-color: transparent;
+}
+
+.cell-button:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+}
+
+.cell-button:active {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ── Total time footer ──────────────────────────────────────────────────────── */
+
+.summary-label {
+    padding: 4px 2px 2px 2px;
+    font-style: italic;
+    color: alpha(white, 0.65);
+    font-size: 0.9em;
+}

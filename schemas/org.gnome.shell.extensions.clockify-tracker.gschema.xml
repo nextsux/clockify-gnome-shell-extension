@@ -1,15 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <schemalist>
-  <schema id="org.gnome.shell.extensions.clockify-tracker" path="/org/gnome/shell/extensions/clockify-tracker/">
+  <schema id="org.gnome.shell.extensions.clockify-tracker"
+          path="/org/gnome/shell/extensions/clockify-tracker/">
+
     <key name="api-key" type="s">
       <default>''</default>
       <summary>Clockify API Key</summary>
-      <description>Your personal API key from Clockify settings</description>
+      <description>Your personal API key from Clockify Profile Settings → API.</description>
     </key>
+
     <key name="workspace-id" type="s">
       <default>''</default>
       <summary>Clockify Workspace ID</summary>
-      <description>The ID of your default workspace</description>
+      <description>The ID of your default Clockify workspace.</description>
     </key>
+
+    <key name="panel-appearance" type="i">
+      <default>0</default>
+      <summary>Panel appearance mode</summary>
+      <description>0 = label only, 1 = icon only, 2 = icon and label.</description>
+    </key>
+
+    <key type="as" name="show-clockify-dropdown">
+      <default><![CDATA[['<Super>t']]]></default>
+      <summary>Global keybinding to toggle the Clockify dropdown</summary>
+      <description>Keyboard shortcut that opens/closes the Clockify panel menu.</description>
+    </key>
+
   </schema>
 </schemalist>
