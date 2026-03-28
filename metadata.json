@@ -1,0 +1,11 @@
+{
+    "name": "Clockify Time Tracker",
+    "description": "Time tracking extension integrated with Clockify API",
+    "uuid": "clockify-tracker@yourdomain.com",
+    "shell-version": [
+        "49"
+    ],
+    "version": 1,
+    "url": "https://github.com/yourusername/clockify-gnome-extension",
+    "settings-schema": "org.gnome.shell.extensions.clockify-tracker"
+}

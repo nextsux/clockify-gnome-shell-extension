@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.clockify-tracker" path="/org/gnome/shell/extensions/clockify-tracker/">
+    <key name="api-key" type="s">
+      <default>''</default>
+      <summary>Clockify API Key</summary>
+      <description>Your personal API key from Clockify settings</description>
+    </key>
+    <key name="workspace-id" type="s">
+      <default>''</default>
+      <summary>Clockify Workspace ID</summary>
+      <description>The ID of your default workspace</description>
+    </key>
+  </schema>
+</schemalist>
