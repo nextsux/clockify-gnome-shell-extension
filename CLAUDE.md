@@ -4,9 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A GNOME Shell extension that integrates with the Clockify time tracking REST API, deliberately mimicking the UX of the Hamster time tracker extension (dropdown panel menu, typeahead autocomplete, today's activity list, continue buttons, global keybinding).
-
-The `hamster-shell-extension/` directory is a local reference copy of the upstream Hamster project — it is **not** part of the extension and is git-ignored.
+A GNOME Shell extension that integrates with the Clockify time tracking REST API, deliberately mimicking the UX of the Hamster time tracker extension (dropdown panel menu, typeahead autocomplete with `@project` syntax, today's activity list, continue buttons, global keybinding).
 
 ## Development Commands
 
@@ -52,11 +50,11 @@ All extension logic lives in three files:
 
 ### extension.js — class breakdown
 
-- **`ActivityEntry`** (`St.Entry`) — inline typeahead autocomplete. On key-release it prefix-matches the typed text against `_activities[]` (list of description strings) and selects the completed suffix so further typing replaces it. Identical mechanism to Hamster's `OngoingFactEntry`.
+- **`ActivityEntry`** (`St.Entry`) — two-zone inline typeahead autocomplete (mirrors Hamster's `OngoingFactEntry`). Input format: `description @project`. On key-release: if the text contains `@`, prefix-matches project names from `_projects[]`; otherwise prefix-matches full history strings from `_activities[]`. The completed suffix is selected so further typing replaces it.
 
-- **`TodaysEntriesWidget`** (`St.ScrollView`) — scrollable `Clutter.GridLayout` grid of today's time entries. Each row: time range, description, human duration, optional ▶ continue button. Entries are displayed oldest→newest (reversed from the Clockify API's newest-first order) so the most recent entry is at the bottom — matching Hamster behaviour.
+- **`TodaysEntriesWidget`** (`St.ScrollView`) — scrollable `Clutter.GridLayout` grid of today's time entries. Each row: time range, `description @project`, human duration, optional ▶ continue button. Entries are displayed oldest→newest (reversed from the Clockify API's newest-first order) so the most recent entry is at the bottom — matching Hamster behaviour.
 
-- **`ClockifyIndicator`** (`PanelMenu.Button`) — the panel widget. Contains `ActivityEntry` + `TodaysEntriesWidget` inside a `PopupBaseMenuItem`. Manages all Clockify REST API calls via an async helper `_apiRequest()` using `Soup.Session`. Caches the `userId` to avoid repeated `/user` fetches. Runs a `GLib.timeout_add_seconds(60)` to update elapsed time.
+- **`ClockifyIndicator`** (`PanelMenu.Button`) — the panel widget. Contains `ActivityEntry` + `TodaysEntriesWidget` inside a `PopupBaseMenuItem`. Manages all Clockify REST API calls via an async helper `_apiRequest()` using `Soup.Session`. Caches `userId` and the full `_projects[]` list. Runs a `GLib.timeout_add_seconds(60)` to update elapsed time. Resets all cached state when `api-key` or `workspace-id` settings change.
 
 - **`ClockifyExtension`** — `enable()` creates the indicator and registers the `show-clockify-dropdown` keybinding via `Main.wm.addKeybinding()`; `disable()` cleans both up.
 
@@ -71,9 +69,11 @@ All extension logic lives in three files:
 
 ### Clockify API endpoints used
 
-- `GET /user` — fetch user ID (cached)
+- `GET /user` — fetch user ID (cached, reset on api-key change)
+- `GET /workspaces/{wid}/projects?page-size=500&archived=false` — all projects (cached in memory, no expiry)
 - `GET /workspaces/{wid}/user/{uid}/time-entries?in-progress=true` — current running entry
-- `GET /workspaces/{wid}/user/{uid}/time-entries?start=<ISO>&page-size=50` — today's entries
+- `GET /workspaces/{wid}/user/{uid}/time-entries?start=<ISO>&page-size=50` — today's entries (display)
+- `GET /workspaces/{wid}/user/{uid}/time-entries?start=<7-days-ago>&page-size=100` — recent entries (autocomplete)
 - `POST /workspaces/{wid}/time-entries` — start a new timer
 - `PATCH /workspaces/{wid}/user/{uid}/time-entries` — stop running timer
 
@@ -88,6 +88,6 @@ All extension logic lives in three files:
 
 `.gitlab-ci.yml` defines three stages:
 
-1. **lint** — ESLint on `extension.js` and `prefs.js` (advisory, `allow_failure: true`)
+1. **lint** — ESLint 9 (flat config in `eslint.config.js`) on `extension.js` and `prefs.js`
 2. **build** — `make dist` → artifact `dist/clockify-tracker@smoula.net.zip`
-3. **publish** — manual job on `v*` tags, uploads to extensions.gnome.org via `ego-upload`. Requires `EGO_USERNAME` / `EGO_PASSWORD` CI variables.
+3. **publish** — manual job on `v\d+` tags, uploads to extensions.gnome.org via `ego-upload`. Requires `EGO_USERNAME` / `EGO_PASSWORD` CI variables.

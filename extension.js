@@ -218,7 +218,7 @@ class ClockifyIndicator extends PanelMenu.Button {
         this._projects     = [];      // all workspace projects [{id, name}]
         this._refreshTimeout = null;
 
-        // Invalidate cached state when the API key changes
+        // Invalidate all cached state when the API key changes, then reload
         this._settings.connect('changed::api-key', () => {
             this._userId       = null;
             this._currentEntry = null;
@@ -226,6 +226,7 @@ class ClockifyIndicator extends PanelMenu.Button {
             this._projects     = [];
             this._refreshPanelLabel();
             this._loadProjects();
+            this._loadCurrentEntry();
         });
 
         // ── Panel label / icon ──
@@ -523,6 +524,9 @@ class ClockifyIndicator extends PanelMenu.Button {
     _refreshPanelLabel() {
         const appearance = this._settings.get_int('panel-appearance');
         // 0 = label only, 1 = icon only, 2 = icon + label
+
+        this._stopItem.reactive  = !!this._currentEntry;
+        this._stopItem.sensitive = !!this._currentEntry;
 
         if (this._currentEntry) {
             const secs = elapsedSeconds(this._currentEntry.timeInterval.start);
