@@ -291,7 +291,17 @@ class ClockifyIndicator extends PanelMenu.Button {
         this._activityEntry = new ActivityEntry(
             () => this._activities,
             () => this._projects);
-        this._activityEntry.clutter_text.connect('activate', () => this._onEntryActivated());
+        // Use key-press-event + EVENT_STOP so the Enter key is consumed here
+        // and never reaches the popup menu's key handler (which would close it
+        // synchronously, before our async _onEntryActivated can show errors).
+        this._activityEntry.clutter_text.connect('key-press-event', (_actor, event) => {
+            const sym = event.get_key_symbol();
+            if (sym === Clutter.KEY_Return || sym === Clutter.KEY_KP_Enter) {
+                this._onEntryActivated();
+                return Clutter.EVENT_STOP;
+            }
+            return Clutter.EVENT_PROPAGATE;
+        });
         mainBox.add_child(this._activityEntry);
 
         this._errorLabel = new St.Label({ style_class: 'clockify-error', text: '' });
@@ -619,6 +629,8 @@ export default class ClockifyExtension extends Extension {
     enable() {
         this.initTranslations();
         _ = this.gettext.bind(this);
+        console.log(`[Clockify] enable — domain: ${this.metadata['gettext-domain']}, ` +
+            `path: ${this.path}, test: ${_('No activity')}`);
         this._settings  = this.getSettings('org.gnome.shell.extensions.clockify-tracker');
         this._indicator = new ClockifyIndicator(this._settings, () => this.openPreferences());
         Main.panel.addToStatusArea('clockify-indicator', this._indicator);

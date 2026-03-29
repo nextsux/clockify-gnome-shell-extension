@@ -64,9 +64,9 @@ reload: install-user
 # Alias kept for muscle memory
 run: reload
 
-# Stream extension log lines (filter out unrelated noise)
+# Stream extension log lines from the user journal (GNOME 45+)
 logs:
-	journalctl -f -o cat /usr/bin/gnome-shell | grep -i clockify
+	journalctl --user -f -o cat | grep -i clockify
 
 # Create distributable zip (suitable for extensions.gnome.org upload)
 zip: compile mo
