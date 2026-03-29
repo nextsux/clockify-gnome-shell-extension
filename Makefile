@@ -1,4 +1,4 @@
-UUID      = clockify-tracker@yourdomain.com
+UUID      = clockify-tracker@smoula.net
 DIST_DIR  = dist
 ZIP_NAME  = $(UUID).zip
 
@@ -6,7 +6,7 @@ ZIP_NAME  = $(UUID).zip
 SOURCES = extension.js prefs.js stylesheet.css metadata.json
 SCHEMA_SRC = schemas/org.gnome.shell.extensions.clockify-tracker.gschema.xml
 
-.PHONY: all compile install install-user clean dist zip
+.PHONY: all compile install install-user run logs clean dist zip
 
 all: compile
 
@@ -36,6 +36,17 @@ zip: compile
 
 dist: zip
 	@echo "Package ready: $(DIST_DIR)/$(ZIP_NAME)"
+
+# Run a nested GNOME Shell session (no logout needed — works on both X11 and Wayland).
+# The extension is installed into the nested session's home via GNOME_SHELL_SLOWDOWN_FACTOR.
+# Usage: make run
+run: install-user
+	@echo "Starting nested GNOME Shell — close its window to exit."
+	dbus-run-session -- gnome-shell --nested --wayland
+
+# Stream extension log lines (filter out unrelated noise)
+logs:
+	journalctl -f -o cat /usr/bin/gnome-shell | grep -i clockify
 
 clean:
 	rm -rf $(DIST_DIR)

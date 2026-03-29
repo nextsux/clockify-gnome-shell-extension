@@ -12,7 +12,7 @@ stages:
   - publish
 
 variables:
-  UUID: "clockify-tracker@yourdomain.com"
+  UUID: "clockify-tracker@smoula.net"
 
 # ── Lint ──────────────────────────────────────────────────────────────────────
 

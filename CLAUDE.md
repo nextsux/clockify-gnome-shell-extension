@@ -13,23 +13,32 @@ The `hamster-shell-extension/` directory is a local reference copy of the upstre
 ```bash
 # Compile GSettings schema (required after any schema changes)
 make compile
-# or directly:
-glib-compile-schemas schemas/
 
-# Install for the current user
+# Install + launch a nested GNOME Shell session (no logout needed, works on Wayland)
+make run
+
+# Install for the current user only (without launching)
 make install-user
 
+# Stream extension-specific log lines
+make logs
+
 # Create distributable zip for extensions.gnome.org
-make dist          # → dist/clockify-tracker@yourdomain.com.zip
-
-# Reload after editing (X11 only):
-busctl --user call org.gnome.Shell /org/gnome/Shell org.gnome.Shell Eval s 'Meta.restart("Restarting…", global.context)'
-
-# On Wayland: log out and back in, or use the Looking Glass (Alt+F2 → lg)
-
-# Watch extension logs:
-journalctl -f -o cat /usr/bin/gnome-shell
+make dist          # → dist/clockify-tracker@smoula.net.zip
 ```
+
+### Iterating without restarting your session
+
+`make run` installs the extension and opens a **nested GNOME Shell** window
+(`dbus-run-session -- gnome-shell --nested --wayland`). The nested shell is a
+fully isolated Wayland compositor running inside your current session — no
+logout required. Close its window to exit.
+
+Workflow:
+1. Edit source files
+2. `make run` — installs + opens nested shell
+3. Test inside the nested window
+4. Close the window, edit again, repeat
 
 ## Architecture
 
@@ -80,5 +89,5 @@ All extension logic lives in three files:
 `.gitlab-ci.yml` defines three stages:
 
 1. **lint** — ESLint on `extension.js` and `prefs.js` (advisory, `allow_failure: true`)
-2. **build** — `make dist` → artifact `dist/clockify-tracker@yourdomain.com.zip`
+2. **build** — `make dist` → artifact `dist/clockify-tracker@smoula.net.zip`
 3. **publish** — manual job on `v*` tags, uploads to extensions.gnome.org via `ego-upload`. Requires `EGO_USERNAME` / `EGO_PASSWORD` CI variables.

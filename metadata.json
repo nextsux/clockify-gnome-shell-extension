@@ -1,7 +1,7 @@
 {
     "name": "Clockify Time Tracker",
     "description": "Time tracking extension that integrates with the Clockify API, mimicking the Hamster time tracker UX.",
-    "uuid": "clockify-tracker@yourdomain.com",
+    "uuid": "clockify-tracker@smoula.net",
     "shell-version": ["45", "46", "47", "48", "49"],
     "version": 1,
     "url": "https://gitlab.smoula.net/nexus/clockify-gnome-shell-extension",
