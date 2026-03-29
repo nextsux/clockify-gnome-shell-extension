@@ -184,9 +184,17 @@ class ClockifyIndicator extends PanelMenu.Button {
         this._openPrefs    = openPrefs;
         this._session      = new Soup.Session();
         this._currentEntry = null;    // in-progress Clockify time entry
-        this._userId       = null;    // cached user id
+        this._userId       = null;    // cached user id (reset on api-key change)
         this._activities   = [];      // descriptions used for autocomplete
         this._refreshTimeout = null;
+
+        // Invalidate cached userId when the API key changes
+        this._settings.connect('changed::api-key', () => {
+            this._userId = null;
+            this._currentEntry = null;
+            this._activities = [];
+            this._refreshPanelLabel();
+        });
 
         // ── Panel label / icon ──
         const box = new St.BoxLayout({ style_class: 'panel-status-menu-box' });
@@ -349,16 +357,25 @@ class ClockifyIndicator extends PanelMenu.Button {
         if (!apiKey || !wid) return;
         try {
             const uid   = await this._ensureUserId();
-            const start = encodeURIComponent(todayStartISO());
+
+            // Fetch today's entries for the activity list display
+            const todayStart = encodeURIComponent(todayStartISO());
             const entries = await this._apiRequest('GET',
-                `/workspaces/${wid}/user/${uid}/time-entries?start=${start}&page-size=50`);
+                `/workspaces/${wid}/user/${uid}/time-entries?start=${todayStart}&page-size=50`);
+
+            // Fetch last 7 days separately for a richer autocomplete set
+            const d = new Date();
+            const weekStart = encodeURIComponent(
+                new Date(d.getFullYear(), d.getMonth(), d.getDate() - 7).toISOString());
+            const recentEntries = await this._apiRequest('GET',
+                `/workspaces/${wid}/user/${uid}/time-entries?start=${weekStart}&page-size=100`);
 
             this._todaysWidget.refresh(entries || [], this._currentEntry);
 
-            // Build autocomplete list: unique descriptions, most-recent first
+            // Build autocomplete list from last 7 days: unique descriptions, most-recent first
             const seen = new Set();
             this._activities = [];
-            for (const e of (entries || [])) {
+            for (const e of (recentEntries || [])) {
                 if (e.description && !seen.has(e.description)) {
                     seen.add(e.description);
                     this._activities.push(e.description);
@@ -412,8 +429,8 @@ class ClockifyIndicator extends PanelMenu.Button {
             await this._apiRequest('PATCH',
                 `/workspaces/${wid}/user/${uid}/time-entries`,
                 { end: new Date().toISOString() });
-        } catch { /* ignore */ }
-        this._currentEntry = null;
+            this._currentEntry = null;
+        } catch { /* ignore — leave currentEntry intact if stop failed */ }
     }
 
     async _stopTimer() {
