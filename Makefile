@@ -1,5 +1,5 @@
 UUID      = clockify-tracker@smoula.net
-DOMAIN    = $(UUID)
+DOMAIN    = clockify-tracker
 DIST_DIR  = dist
 ZIP_NAME  = $(UUID).zip
 
