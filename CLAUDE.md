@@ -15,8 +15,11 @@ make compile
 # Compile .po translation files to .mo binaries
 make mo
 
-# Hot-reload extension in the running GNOME session (no logout needed)
-make run           # alias for: make reload
+# Nested GNOME Shell window for development (GNOME 44+, uses --devkit)
+make run
+
+# Hot-reload extension in the running session without a nested window
+make reload
 
 # Install for the current user only (without reloading)
 make install-user
@@ -31,17 +34,20 @@ make logs
 make dist          # → dist/clockify-tracker@smoula.net.zip
 ```
 
-### Iterating without restarting your session
+### Development workflow
 
-`make run` (alias `make reload`) compiles schemas + translations, installs, then
-hot-reloads via `gnome-extensions disable / enable`. GNOME Shell re-executes the
-extension JS in-place — no logout required.
+`make run` opens a nested GNOME Shell window via `dbus-run-session gnome-shell --devkit --wayland`.
+Each run is a fresh GJS process — no ES-module cache, no stale code.
+`console.log` output appears directly in the terminal.
+
+`make reload` does a faster in-session disable/enable cycle (no new window).
+Use it for quick tweaks; use `make run` when behaviour seems stale.
 
 Workflow:
 1. Edit source files
-2. `make run` — reloads the extension in your live session
-3. Test directly in your desktop
-4. Repeat
+2. `make run` — opens nested shell
+3. Test inside the nested window
+4. Close it, repeat
 
 ## Architecture
 

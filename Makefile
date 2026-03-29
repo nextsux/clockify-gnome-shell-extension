@@ -54,28 +54,26 @@ install: compile mo
 	[ -d locale ] && cp -r locale/ /usr/share/gnome-shell/extensions/$(UUID)/locale/ || true
 	glib-compile-schemas /usr/share/gnome-shell/extensions/$(UUID)/schemas/
 
-# Launch a nested GNOME Shell for development.
-# Each run is a fresh GJS process — no ES-module cache, no stale code.
-# console.log output appears directly in this terminal, not in the journal.
-#
-# We pass the parent WAYLAND_DISPLAY explicitly so mutter uses the Wayland
-# nested backend (opens a window inside your compositor) instead of trying
-# to take over the hardware session via logind (which would fail with EBUSY).
+# Launch a nested GNOME Shell for development (GNOME 44+).
+# --devkit replaces the removed --nested flag; opens a window inside the
+# current compositor. console.log output appears directly in this terminal.
 run: install-user
 	@echo "Starting nested GNOME Shell — close its window to exit."
-	dbus-run-session -- env WAYLAND_DISPLAY=$(WAYLAND_DISPLAY) gnome-shell --wayland
+	dbus-run-session gnome-shell --devkit --wayland
 
-# Quick in-session reload (GNOME 45+ / Wayland).
-# Faster than 'make run' but GJS may serve cached modules — use 'make run'
-# if you suspect stale code.
+# Quick in-session reload without a nested window.
 reload: install-user
+	@echo "Reloading $(UUID)…"
 	@gnome-extensions disable $(UUID) 2>/dev/null; sleep 0.5
 	@gnome-extensions enable $(UUID)
-	@echo "Reloaded. Logs: make logs"
+	@echo "Done. Run 'make logs' to watch output."
 
-# Stream extension log lines from the user journal (for 'make reload' workflow)
+# Stream extension log lines.
+# GNOME 45+ tags console.log() output with GNOME_SHELL_EXTENSION_UUID in the
+# user journal — this is the most reliable filter on modern systemd setups.
 logs:
-	journalctl --user -f -o cat | grep -i clockify
+	@echo "Tailing logs for $(UUID) — Ctrl-C to stop."
+	journalctl --user -f GNOME_SHELL_EXTENSION_UUID=$(UUID)
 
 # Create distributable zip (suitable for extensions.gnome.org upload)
 zip: compile mo
