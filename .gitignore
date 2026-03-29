@@ -10,6 +10,9 @@ schemas/gschemas.compiled
 # Node — modules ignored, lockfile tracked for reproducible CI installs
 node_modules/
 
+# Claude Code local state
+.claude/
+
 # Editor / IDE
 .vscode/
 .idea/
