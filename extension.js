@@ -248,6 +248,7 @@ class ClockifyIndicator extends PanelMenu.Button {
         this.add_child(box);
 
         this._buildMenu();
+        this._refreshPanelLabel();   // set correct icon/label before first API response
 
         // Focus entry and refresh when menu opens
         this.menu.connect('open-state-changed', (_menu, open) => {
@@ -258,9 +259,9 @@ class ClockifyIndicator extends PanelMenu.Button {
             }
         });
 
-        // Update elapsed time display every 60 s (same interval as Hamster)
+        // Every 60 s re-fetch the running entry so web changes are reflected.
         this._refreshTimeout = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 60, () => {
-            this._refreshPanelLabel();
+            this._loadCurrentEntry();
             return GLib.SOURCE_CONTINUE;
         });
 
@@ -354,13 +355,12 @@ class ClockifyIndicator extends PanelMenu.Button {
     // ── Menu open ─────────────────────────────────────────────────────────────
 
     _onMenuOpen() {
-        this._loadTodaysEntries();
-        // Delay focus slightly so the menu finishes opening
+        // Re-fetch running entry first so _currentEntry is current before
+        // populating the list (catches changes made via the web app).
+        this._loadCurrentEntry().then(() => this._loadTodaysEntries());
+        // Focus the entry after the menu finishes its opening animation
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, 20, () => {
             global.stage.set_key_focus(this._activityEntry);
-            // Scroll to bottom so the most recent entry is visible (Hamster behaviour)
-            const adj = this._todaysWidget.vadjustment;
-            if (adj) adj.value = adj.upper;
             return GLib.SOURCE_REMOVE;
         });
     }
@@ -473,6 +473,12 @@ class ClockifyIndicator extends PanelMenu.Button {
                 `/workspaces/${wid}/user/${uid}/time-entries?start=${weekStart}&page-size=100`);
 
             this._todaysWidget.refresh(entries || [], this._currentEntry, this._projects);
+            // Scroll to bottom after Clutter lays out the new rows (newest entry visible)
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
+                const adj = this._todaysWidget.vadjustment;
+                if (adj) adj.value = adj.upper;
+                return GLib.SOURCE_REMOVE;
+            });
 
             // Build autocomplete list from last 7 days: "description @project" strings,
             // unique, most-recent first.  7-day window gives richer suggestions than today only.
@@ -500,7 +506,7 @@ class ClockifyIndicator extends PanelMenu.Button {
                 totalSecs += elapsedSeconds(this._currentEntry.timeInterval.start);
             this._totalLabel.set_text(totalSecs > 0 ? _('Total: %s').replace('%s', formatDuration(totalSecs)) : '');
         } catch (e) {
-            Main.notify(_('Clockify Error'), _('Failed to load entries: %s').replace('%s', e.message));
+            this._showError(_('Failed to load entries: %s').replace('%s', e.message));
         }
     }
 
@@ -562,50 +568,26 @@ class ClockifyIndicator extends PanelMenu.Button {
     // ── Panel label update ────────────────────────────────────────────────────
 
     _refreshPanelLabel() {
-        const appearance = this._settings.get_int('panel-appearance');
         // 0 = label only, 1 = icon only, 2 = icon + label
+        const appearance = this._settings.get_int('panel-appearance');
 
         this._stopItem.reactive  = !!this._currentEntry;
         this._stopItem.sensitive = !!this._currentEntry;
 
+        let text, iconName;
         if (this._currentEntry) {
             const secs = elapsedSeconds(this._currentEntry.timeInterval.start);
-            const desc = this._currentEntry.description || _('Tracking');
-            const text = `${desc} ${formatDuration(secs)}`;
-            this._panelIcon.icon_name = 'media-record-symbolic';
-            switch (appearance) {
-            case 1:
-                this._panelIcon.show();
-                this._panelLabel.hide();
-                break;
-            case 2:
-                this._panelIcon.show();
-                this._panelLabel.set_text(text);
-                this._panelLabel.show();
-                break;
-            default: // 0
-                this._panelIcon.hide();
-                this._panelLabel.set_text(text);
-                this._panelLabel.show();
-            }
+            text     = `${this._currentEntry.description || _('Tracking')} ${formatDuration(secs)}`;
+            iconName = 'media-record-symbolic';
         } else {
-            this._panelIcon.icon_name = 'alarm-symbolic';
-            switch (appearance) {
-            case 1:
-                this._panelIcon.show();
-                this._panelLabel.hide();
-                break;
-            case 2:
-                this._panelIcon.show();
-                this._panelLabel.set_text(_('No activity'));
-                this._panelLabel.show();
-                break;
-            default: // 0
-                this._panelIcon.hide();
-                this._panelLabel.set_text(_('No activity'));
-                this._panelLabel.show();
-            }
+            text     = _('No activity');
+            iconName = 'alarm-symbolic';
         }
+
+        this._panelIcon.icon_name  = iconName;
+        this._panelIcon.visible    = appearance !== 0;   // shown in icon-only (1) and icon+label (2)
+        this._panelLabel.visible   = appearance !== 1;   // shown in label-only (0) and icon+label (2)
+        if (appearance !== 1) this._panelLabel.set_text(text);
     }
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
@@ -629,8 +611,6 @@ export default class ClockifyExtension extends Extension {
     enable() {
         this.initTranslations();
         _ = this.gettext.bind(this);
-        console.log(`[Clockify] enable — domain: ${this.metadata['gettext-domain']}, ` +
-            `path: ${this.path}, test: ${_('No activity')}`);
         this._settings  = this.getSettings('org.gnome.shell.extensions.clockify-tracker');
         this._indicator = new ClockifyIndicator(this._settings, () => this.openPreferences());
         Main.panel.addToStatusArea('clockify-indicator', this._indicator);
