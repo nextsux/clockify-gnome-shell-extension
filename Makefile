@@ -51,7 +51,7 @@ run: install-user
 	  gsettings set org.gnome.shell enabled-extensions \
 	    "$$(gsettings get org.gnome.shell enabled-extensions | sed "s/]/', '$(UUID)']/")"
 	@echo "Starting nested GNOME Shell — close its window to exit."
-	dbus-run-session -- gnome-shell --nested --wayland
+	dbus-run-session -- gnome-shell --wayland
 
 # Stream extension log lines (filter out unrelated noise)
 logs:
