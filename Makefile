@@ -57,11 +57,13 @@ install: compile mo
 # Launch a nested GNOME Shell for development.
 # Each run is a fresh GJS process — no ES-module cache, no stale code.
 # console.log output appears directly in this terminal, not in the journal.
-# On GNOME 44+, --nested was removed; gnome-shell auto-nests when
-# WAYLAND_DISPLAY is already set (Mutter opens a window in the parent compositor).
+#
+# We pass the parent WAYLAND_DISPLAY explicitly so mutter uses the Wayland
+# nested backend (opens a window inside your compositor) instead of trying
+# to take over the hardware session via logind (which would fail with EBUSY).
 run: install-user
 	@echo "Starting nested GNOME Shell — close its window to exit."
-	dbus-run-session -- gnome-shell --wayland
+	dbus-run-session -- env WAYLAND_DISPLAY=$(WAYLAND_DISPLAY) gnome-shell --wayland
 
 # Quick in-session reload (GNOME 45+ / Wayland).
 # Faster than 'make run' but GJS may serve cached modules — use 'make run'
