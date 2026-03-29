@@ -59,7 +59,7 @@ install: compile mo
 # current compositor. console.log output appears directly in this terminal.
 run: install-user
 	@echo "Starting nested GNOME Shell — close its window to exit."
-	dbus-run-session gnome-shell --devkit --wayland
+	dbus-run-session env NO_AT_BRIDGE=1 gnome-shell --devkit --wayland
 
 # Quick in-session reload without a nested window.
 reload: install-user
