@@ -290,6 +290,10 @@ class ClockifyIndicator extends PanelMenu.Button {
         this._activityEntry.clutter_text.connect('activate', () => this._onEntryActivated());
         mainBox.add_child(this._activityEntry);
 
+        this._errorLabel = new St.Label({ style_class: 'clockify-error', text: '' });
+        this._errorLabel.hide();
+        mainBox.add_child(this._errorLabel);
+
         mainBox.add_child(new St.Label({
             style_class: 'hamster-box-label',
             text: _("Today's activities"),
@@ -317,6 +321,22 @@ class ClockifyIndicator extends PanelMenu.Button {
         this.menu.addMenuItem(settingsItem);
     }
 
+    // ── Inline error display ──────────────────────────────────────────────────
+
+    _showError(msg) {
+        this._errorLabel.set_text(msg);
+        this._errorLabel.show();
+        if (this._errorTimeout) {
+            GLib.source_remove(this._errorTimeout);
+            this._errorTimeout = null;
+        }
+        this._errorTimeout = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, 5, () => {
+            this._errorLabel.hide();
+            this._errorTimeout = null;
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
     // ── Menu open ─────────────────────────────────────────────────────────────
 
     _onMenuOpen() {
@@ -336,8 +356,6 @@ class ClockifyIndicator extends PanelMenu.Button {
     async _onEntryActivated() {
         const raw = this._activityEntry.get_text().trim();
         if (!raw) return;
-        this._activityEntry.set_text('');
-        this._activityEntry._prevText = '';
 
         const atIdx = raw.lastIndexOf('@');
         let description, projectId = null;
@@ -350,15 +368,19 @@ class ClockifyIndicator extends PanelMenu.Button {
             description = raw;
         }
 
-        await this._startTimer(description, projectId);
-        this.menu.close();
+        const ok = await this._startTimer(description, projectId);
+        if (ok) {
+            this._activityEntry.set_text('');
+            this._activityEntry._prevText = '';
+            this.menu.close();
+        }
     }
 
     // ── Continue a past entry ─────────────────────────────────────────────────
 
     async _continueEntry(entry) {
-        await this._startTimer(entry.description || '', entry.projectId || null);
-        this.menu.close();
+        const ok = await this._startTimer(entry.description || '', entry.projectId || null);
+        if (ok) this.menu.close();
     }
 
     // ── Clockify API helpers ──────────────────────────────────────────────────
@@ -470,12 +492,13 @@ class ClockifyIndicator extends PanelMenu.Button {
 
     // ── Timer control ─────────────────────────────────────────────────────────
 
+    // Returns true on success, false on failure (caller gates menu close / text clear).
     async _startTimer(description, projectId) {
         const apiKey = this._settings.get_string('api-key');
         const wid    = this._settings.get_string('workspace-id');
         if (!apiKey || !wid) {
-            Main.notify('Clockify', _('Please configure API key and workspace in Extension Settings'));
-            return;
+            this._showError(_('Configure API key and workspace in Extension Settings first'));
+            return false;
         }
         // Stop whatever is running first (same as Hamster's AddFact replacing ongoing fact)
         if (this._currentEntry) await this._stopTimerSilent();
@@ -485,10 +508,13 @@ class ClockifyIndicator extends PanelMenu.Button {
             const entry = await this._apiRequest('POST',
                 `/workspaces/${wid}/time-entries`, body);
             this._currentEntry = entry;
+            this._errorLabel.hide();
             this._refreshPanelLabel();
             this._loadTodaysEntries();
+            return true;
         } catch (e) {
-            Main.notify(_('Clockify Error'), _('Failed to start timer: %s').replace('%s', e.message));
+            this._showError(_('Failed to start timer: %s').replace('%s', e.message));
+            return false;
         }
     }
 
@@ -574,6 +600,10 @@ class ClockifyIndicator extends PanelMenu.Button {
         if (this._refreshTimeout) {
             GLib.source_remove(this._refreshTimeout);
             this._refreshTimeout = null;
+        }
+        if (this._errorTimeout) {
+            GLib.source_remove(this._errorTimeout);
+            this._errorTimeout = null;
         }
         super.destroy();
     }

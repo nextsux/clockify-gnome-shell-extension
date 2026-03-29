@@ -52,6 +52,14 @@
     background-color: rgba(255, 255, 255, 0.2);
 }
 
+/* ── Inline error label (below activity entry) ──────────────────────────────── */
+
+.clockify-error {
+    color: #ff6b6b;
+    font-size: 0.85em;
+    padding: 2px 2px 0 2px;
+}
+
 /* ── Total time footer ──────────────────────────────────────────────────────── */
 
 .summary-label {

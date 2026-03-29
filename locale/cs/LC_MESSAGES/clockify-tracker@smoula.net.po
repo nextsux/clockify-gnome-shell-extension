@@ -56,6 +56,9 @@ msgstr "Chybí API klíč \342\200\224 otevřete nastavení rozšíření"
 msgid "Please configure API key and workspace in Extension Settings"
 msgstr "Nastavte prosím API klíč a workspace v nastavení rozšíření"
 
+msgid "Configure API key and workspace in Extension Settings first"
+msgstr "Nejprve nastavte API klíč a workspace v nastavení rozšíření"
+
 msgid "Clockify Error"
 msgstr "Chyba Clockify"
 
