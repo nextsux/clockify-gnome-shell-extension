@@ -54,17 +54,24 @@ install: compile mo
 	[ -d locale ] && cp -r locale/ /usr/share/gnome-shell/extensions/$(UUID)/locale/ || true
 	glib-compile-schemas /usr/share/gnome-shell/extensions/$(UUID)/schemas/
 
-# Hot-reload the extension in the running GNOME session (GNOME 45+ / Wayland).
-# No logout required — disable+enable forces GNOME Shell to reload the JS.
+# Launch a nested GNOME Shell for development.
+# Each run is a fresh GJS process — no ES-module cache, no stale code.
+# console.log output appears directly in this terminal, not in the journal.
+# On GNOME 44+, --nested was removed; gnome-shell auto-nests when
+# WAYLAND_DISPLAY is already set (Mutter opens a window in the parent compositor).
+run: install-user
+	@echo "Starting nested GNOME Shell — close its window to exit."
+	dbus-run-session -- gnome-shell --wayland
+
+# Quick in-session reload (GNOME 45+ / Wayland).
+# Faster than 'make run' but GJS may serve cached modules — use 'make run'
+# if you suspect stale code.
 reload: install-user
-	@gnome-extensions enable $(UUID) 2>/dev/null || true
-	@gnome-extensions disable $(UUID) && sleep 0.3 && gnome-extensions enable $(UUID)
-	@echo "Extension reloaded. Watch logs with: make logs"
+	@gnome-extensions disable $(UUID) 2>/dev/null; sleep 0.5
+	@gnome-extensions enable $(UUID)
+	@echo "Reloaded. Logs: make logs"
 
-# Alias kept for muscle memory
-run: reload
-
-# Stream extension log lines from the user journal (GNOME 45+)
+# Stream extension log lines from the user journal (for 'make reload' workflow)
 logs:
 	journalctl --user -f -o cat | grep -i clockify
 
