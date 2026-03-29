@@ -1,0 +1,99 @@
+# Czech translation for Clockify Tracker GNOME Shell extension
+# Copyright (C) 2025
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: cs\n"
+"Plural-Forms: nplurals=3; plural=(n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2;\n"
+
+# extension.js — ActivityEntry
+msgid "activity @project\342\200\246"
+msgstr "aktivita @projekt\342\200\246"
+
+# extension.js — formatDurationHuman
+msgid "Just started"
+msgstr "Právě začalo"
+
+msgid "h "
+msgstr "h "
+
+msgid "min"
+msgstr "min"
+
+# extension.js — TodaysEntriesWidget
+msgid "(no description)"
+msgstr "(bez popisu)"
+
+# extension.js — ClockifyIndicator panel label
+msgid "No activity"
+msgstr "Žádná aktivita"
+
+msgid "Tracking"
+msgstr "Sledování"
+
+# extension.js — menu items
+msgid "What are you working on?"
+msgstr "Na čem právě pracuješ?"
+
+msgid "Today's activities"
+msgstr "Dnešní aktivity"
+
+msgid "Stop Tracking"
+msgstr "Zastavit sledování"
+
+msgid "Extension Settings"
+msgstr "Nastavení rozšíření"
+
+# extension.js — total label
+msgid "Total: %s"
+msgstr "Celkem: %s"
+
+# extension.js — error / notification messages
+msgid "No API key \342\200\224 open Extension Settings to configure"
+msgstr "Chybí API klíč \342\200\224 otevřete nastavení rozšíření"
+
+msgid "Please configure API key and workspace in Extension Settings"
+msgstr "Nastavte prosím API klíč a workspace v nastavení rozšíření"
+
+msgid "Clockify Error"
+msgstr "Chyba Clockify"
+
+msgid "Failed to load entries: %s"
+msgstr "Nepodařilo se načíst záznamy: %s"
+
+msgid "Failed to start timer: %s"
+msgstr "Nepodařilo se spustit časovač: %s"
+
+msgid "Failed to stop timer: %s"
+msgstr "Nepodařilo se zastavit časovač: %s"
+
+# prefs.js — credentials group
+msgid "Clockify Credentials"
+msgstr "Přihlašovací údaje Clockify"
+
+msgid "API Key"
+msgstr "API klíč"
+
+msgid "Workspace ID"
+msgstr "ID pracovního prostoru"
+
+# prefs.js — panel appearance
+msgid "Panel Appearance"
+msgstr "Vzhled panelu"
+
+msgid "Label only (activity name + elapsed time)"
+msgstr "Pouze popisek (název aktivity + uplynulý čas)"
+
+msgid "Icon only"
+msgstr "Pouze ikona"
+
+msgid "Icon and label"
+msgstr "Ikona a popisek"
+
+# prefs.js — keyboard shortcut
+msgid "Keyboard Shortcut"
+msgstr "Klávesová zkratka"
+
+msgid "Toggle dropdown"
+msgstr "Přepnout menu"

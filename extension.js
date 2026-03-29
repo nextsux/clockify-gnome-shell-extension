@@ -14,7 +14,7 @@ import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
-import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
+import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
 
 const CLOCKIFY_API_URL = 'https://api.clockify.me/api/v1';
 
@@ -29,8 +29,8 @@ function formatDuration(totalSeconds) {
 function formatDurationHuman(totalSeconds) {
     const h = Math.floor(totalSeconds / 3600);
     const m = Math.floor((totalSeconds % 3600) / 60);
-    if (h === 0 && m === 0) return 'Just started';
-    return `${h > 0 ? h + 'h ' : ''}${m > 0 ? m + 'min' : ''}`.trim();
+    if (h === 0 && m === 0) return _('Just started');
+    return `${h > 0 ? h + _('h ') : ''}${m > 0 ? m + _('min') : ''}`.trim();
 }
 
 function elapsedSeconds(isoStart) {
@@ -60,7 +60,7 @@ class ActivityEntry extends St.Entry {
             name: 'searchEntry',
             can_focus: true,
             track_hover: true,
-            hint_text: 'activity @project\u2026',
+            hint_text: _('activity @project\u2026'),
             style_class: 'search-entry',
         });
         this._getActivities = getActivities;
@@ -165,7 +165,7 @@ class TodaysEntriesWidget extends St.ScrollView {
             }
 
             const projectName = projects.find(p => p.id === entry.projectId)?.name;
-            const descText = [entry.description || '(no description)',
+            const descText = [entry.description || _('(no description)'),
                 projectName ? `@${projectName}` : null]
                 .filter(Boolean).join(' ');
 
@@ -236,7 +236,7 @@ class ClockifyIndicator extends PanelMenu.Button {
             style_class: 'system-status-icon',
         });
         this._panelLabel = new St.Label({
-            text: 'No activity',
+            text: _('No activity'),
             y_align: Clutter.ActorAlign.CENTER,
         });
         box.add_child(this._panelIcon);
@@ -281,7 +281,7 @@ class ClockifyIndicator extends PanelMenu.Button {
 
         mainBox.add_child(new St.Label({
             style_class: 'hamster-box-label',
-            text: 'What are you working on?',
+            text: _('What are you working on?'),
         }));
 
         this._activityEntry = new ActivityEntry(
@@ -292,7 +292,7 @@ class ClockifyIndicator extends PanelMenu.Button {
 
         mainBox.add_child(new St.Label({
             style_class: 'hamster-box-label',
-            text: "Today's activities",
+            text: _("Today's activities"),
         }));
 
         this._todaysWidget = new TodaysEntriesWidget(e => this._continueEntry(e));
@@ -305,14 +305,14 @@ class ClockifyIndicator extends PanelMenu.Button {
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         // Stop Tracking
-        this._stopItem = new PopupMenu.PopupMenuItem('Stop Tracking');
+        this._stopItem = new PopupMenu.PopupMenuItem(_('Stop Tracking'));
         this._stopItem.connect('activate', () => this._stopTimer());
         this.menu.addMenuItem(this._stopItem);
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
         // Settings
-        const settingsItem = new PopupMenu.PopupMenuItem('Extension Settings');
+        const settingsItem = new PopupMenu.PopupMenuItem(_('Extension Settings'));
         settingsItem.connect('activate', () => this._openPrefs());
         this.menu.addMenuItem(settingsItem);
     }
@@ -365,7 +365,7 @@ class ClockifyIndicator extends PanelMenu.Button {
 
     async _apiRequest(method, path, body = null) {
         const apiKey = this._settings.get_string('api-key');
-        if (!apiKey) throw new Error('No API key \u2014 open Extension Settings to configure');
+        if (!apiKey) throw new Error(_('No API key \u2014 open Extension Settings to configure'));
 
         const msg = Soup.Message.new(method, `${CLOCKIFY_API_URL}${path}`);
         msg.request_headers.append('X-Api-Key', apiKey);
@@ -462,9 +462,9 @@ class ClockifyIndicator extends PanelMenu.Button {
             }
             if (this._currentEntry)
                 totalSecs += elapsedSeconds(this._currentEntry.timeInterval.start);
-            this._totalLabel.set_text(totalSecs > 0 ? `Total: ${formatDuration(totalSecs)}` : '');
+            this._totalLabel.set_text(totalSecs > 0 ? _('Total: %s').replace('%s', formatDuration(totalSecs)) : '');
         } catch (e) {
-            Main.notify('Clockify Error', `Failed to load entries: ${e.message}`);
+            Main.notify(_('Clockify Error'), _('Failed to load entries: %s').replace('%s', e.message));
         }
     }
 
@@ -474,7 +474,7 @@ class ClockifyIndicator extends PanelMenu.Button {
         const apiKey = this._settings.get_string('api-key');
         const wid    = this._settings.get_string('workspace-id');
         if (!apiKey || !wid) {
-            Main.notify('Clockify', 'Please configure API key and workspace in Extension Settings');
+            Main.notify('Clockify', _('Please configure API key and workspace in Extension Settings'));
             return;
         }
         // Stop whatever is running first (same as Hamster's AddFact replacing ongoing fact)
@@ -488,7 +488,7 @@ class ClockifyIndicator extends PanelMenu.Button {
             this._refreshPanelLabel();
             this._loadTodaysEntries();
         } catch (e) {
-            Main.notify('Clockify Error', `Failed to start timer: ${e.message}`);
+            Main.notify(_('Clockify Error'), _('Failed to start timer: %s').replace('%s', e.message));
         }
     }
 
@@ -515,7 +515,7 @@ class ClockifyIndicator extends PanelMenu.Button {
             this._refreshPanelLabel();
             this._loadTodaysEntries();
         } catch (e) {
-            Main.notify('Clockify Error', `Failed to stop timer: ${e.message}`);
+            Main.notify(_('Clockify Error'), _('Failed to stop timer: %s').replace('%s', e.message));
         }
     }
 
@@ -530,7 +530,7 @@ class ClockifyIndicator extends PanelMenu.Button {
 
         if (this._currentEntry) {
             const secs = elapsedSeconds(this._currentEntry.timeInterval.start);
-            const desc = this._currentEntry.description || 'Tracking';
+            const desc = this._currentEntry.description || _('Tracking');
             const text = `${desc} ${formatDuration(secs)}`;
             this._panelIcon.icon_name = 'media-record-symbolic';
             switch (appearance) {
@@ -557,12 +557,12 @@ class ClockifyIndicator extends PanelMenu.Button {
                 break;
             case 2:
                 this._panelIcon.show();
-                this._panelLabel.set_text('No activity');
+                this._panelLabel.set_text(_('No activity'));
                 this._panelLabel.show();
                 break;
             default: // 0
                 this._panelIcon.hide();
-                this._panelLabel.set_text('No activity');
+                this._panelLabel.set_text(_('No activity'));
                 this._panelLabel.show();
             }
         }
@@ -583,6 +583,7 @@ class ClockifyIndicator extends PanelMenu.Button {
 
 export default class ClockifyExtension extends Extension {
     enable() {
+        this.initTranslations();
         this._settings  = this.getSettings('org.gnome.shell.extensions.clockify-tracker');
         this._indicator = new ClockifyIndicator(this._settings, () => this.openPreferences());
         Main.panel.addToStatusArea('clockify-indicator', this._indicator);

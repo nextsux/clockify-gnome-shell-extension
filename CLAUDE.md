@@ -12,11 +12,17 @@ A GNOME Shell extension that integrates with the Clockify time tracking REST API
 # Compile GSettings schema (required after any schema changes)
 make compile
 
-# Install + launch a nested GNOME Shell session (no logout needed, works on Wayland)
-make run
+# Compile .po translation files to .mo binaries
+make mo
 
-# Install for the current user only (without launching)
+# Hot-reload extension in the running GNOME session (no logout needed)
+make run           # alias for: make reload
+
+# Install for the current user only (without reloading)
 make install-user
+
+# Extract translatable strings to locale/clockify-tracker@smoula.net.pot
+make pot
 
 # Stream extension-specific log lines
 make logs
@@ -27,16 +33,15 @@ make dist          # → dist/clockify-tracker@smoula.net.zip
 
 ### Iterating without restarting your session
 
-`make run` installs the extension and opens a **nested GNOME Shell** window
-(`dbus-run-session -- gnome-shell --nested --wayland`). The nested shell is a
-fully isolated Wayland compositor running inside your current session — no
-logout required. Close its window to exit.
+`make run` (alias `make reload`) compiles schemas + translations, installs, then
+hot-reloads via `gnome-extensions disable / enable`. GNOME Shell re-executes the
+extension JS in-place — no logout required.
 
 Workflow:
 1. Edit source files
-2. `make run` — installs + opens nested shell
-3. Test inside the nested window
-4. Close the window, edit again, repeat
+2. `make run` — reloads the extension in your live session
+3. Test directly in your desktop
+4. Repeat
 
 ## Architecture
 
@@ -47,6 +52,7 @@ All extension logic lives in three files:
 | `extension.js` | Main extension — panel indicator, dropdown, API calls |
 | `prefs.js` | Preferences page (API key, workspace, keybinding, appearance) |
 | `stylesheet.css` | CSS for the dropdown layout |
+| `locale/<lang>/LC_MESSAGES/clockify-tracker@smoula.net.po` | Translations (`.mo` compiled by `make mo`, gitignored) |
 
 ### extension.js — class breakdown
 

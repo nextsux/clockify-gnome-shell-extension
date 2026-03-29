@@ -10,6 +10,9 @@ schemas/gschemas.compiled
 # Node — modules ignored, lockfile tracked for reproducible CI installs
 node_modules/
 
+# Compiled translation binaries (generated from .po by `make mo`)
+locale/**/*.mo
+
 # Claude Code local state
 .claude/
 
