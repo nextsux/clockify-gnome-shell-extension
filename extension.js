@@ -14,7 +14,11 @@ import Meta from 'gi://Meta';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
-import { Extension, gettext as _ } from 'resource:///org/gnome/shell/extensions/extension.js';
+import { Extension } from 'resource:///org/gnome/shell/extensions/extension.js';
+
+// Translations — wired to the real gettext domain in ClockifyExtension.enable()
+// so all _() calls in methods always use the correct locale.
+let _ = str => str;
 
 const CLOCKIFY_API_URL = 'https://api.clockify.me/api/v1';
 
@@ -575,7 +579,7 @@ class ClockifyIndicator extends PanelMenu.Button {
                 this._panelLabel.show();
             }
         } else {
-            this._panelIcon.icon_name = 'preferences-system-time-symbolic';
+            this._panelIcon.icon_name = 'alarm-symbolic';
             switch (appearance) {
             case 1:
                 this._panelIcon.show();
@@ -614,6 +618,7 @@ class ClockifyIndicator extends PanelMenu.Button {
 export default class ClockifyExtension extends Extension {
     enable() {
         this.initTranslations();
+        _ = this.gettext.bind(this);
         this._settings  = this.getSettings('org.gnome.shell.extensions.clockify-tracker');
         this._indicator = new ClockifyIndicator(this._settings, () => this.openPreferences());
         Main.panel.addToStatusArea('clockify-indicator', this._indicator);
