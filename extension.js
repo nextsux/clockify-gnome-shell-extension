@@ -44,49 +44,72 @@ function todayStartISO() {
 
 // ─── ActivityEntry ────────────────────────────────────────────────────────────
 //
-// St.Entry subclass that provides inline typeahead autocomplete against a list
-// of known activity descriptions.  Mirrors the OngoingFactEntry from Hamster.
+// St.Entry with two-zone inline typeahead autocomplete (mirrors OngoingFactEntry
+// from Hamster).  Input format:  "description @project"
+//
+//  • Before @ → prefix-match full history strings from _getActivities()
+//  • After  @ → prefix-match project names from _getProjects(), keeping the
+//               text before @ intact
+//
+// The completed suffix is selected so further typing replaces it.
 
 const ActivityEntry = GObject.registerClass(
 class ActivityEntry extends St.Entry {
-    _init(getActivities) {
+    _init(getActivities, getProjects) {
         super._init({
             name: 'searchEntry',
             can_focus: true,
             track_hover: true,
-            hint_text: 'Enter activity\u2026',
+            hint_text: 'activity @project\u2026',
             style_class: 'search-entry',
         });
         this._getActivities = getActivities;
-        this._prevText = '';
+        this._getProjects   = getProjects;
+        this._prevText      = '';
         this.clutter_text.connect('key-release-event', this._onKeyRelease.bind(this));
+    }
+
+    _complete(text, completed) {
+        this.set_text(completed);
+        this.get_clutter_text().set_selection(text.length, completed.length);
+        this._prevText = completed.toLowerCase();
     }
 
     _onKeyRelease(_actor, evt) {
         const symbol = evt.get_key_symbol();
-        // Keys that should not trigger autocomplete
         const ignored = [
-            Clutter.KEY_BackSpace, Clutter.KEY_Delete,   Clutter.KEY_Escape,
-            Clutter.KEY_Return,    Clutter.KEY_KP_Enter,  Clutter.KEY_Tab,
+            Clutter.KEY_BackSpace, Clutter.KEY_Delete,  Clutter.KEY_Escape,
+            Clutter.KEY_Return,    Clutter.KEY_KP_Enter, Clutter.KEY_Tab,
             Clutter.KEY_Up,        Clutter.KEY_Down,
         ];
         if (ignored.includes(symbol)) return;
 
         const text = this.get_text();
         if (!text) return;
-        // If text unchanged or there's already a selection in progress, skip
         if (text.toLowerCase() === this._prevText) return;
         if (this.clutter_text.get_selection()) return;
 
         this._prevText = text.toLowerCase();
 
-        for (const activity of this._getActivities()) {
-            if (activity.toLowerCase().startsWith(text.toLowerCase())) {
-                this.set_text(activity);
-                // Select the completed portion so typing replaces it
-                this.get_clutter_text().set_selection(text.length, activity.length);
-                this._prevText = activity.toLowerCase();
-                break;
+        const atIdx = text.lastIndexOf('@');
+
+        if (atIdx !== -1) {
+            // Zone 2 — after @: complete project names
+            const prefix  = text.slice(0, atIdx + 1);   // everything up to and including @
+            const partial  = text.slice(atIdx + 1).toLowerCase();
+            for (const p of this._getProjects()) {
+                if (p.name.toLowerCase().startsWith(partial)) {
+                    this._complete(text, prefix + p.name);
+                    return;
+                }
+            }
+        } else {
+            // Zone 1 — no @: complete full history strings
+            for (const activity of this._getActivities()) {
+                if (activity.toLowerCase().startsWith(text.toLowerCase())) {
+                    this._complete(text, activity);
+                    return;
+                }
             }
         }
     }
@@ -116,7 +139,8 @@ class TodaysEntriesWidget extends St.ScrollView {
 
     // entries: Clockify API time-entry objects (newest-first from API)
     // currentEntry: the in-progress entry or null
-    refresh(entries, currentEntry) {
+    // projects: full project list [{id, name}] for name lookup
+    refresh(entries, currentEntry, projects = []) {
         this._grid.remove_all_children();
         const layout = this._grid.layout_manager;
 
@@ -140,10 +164,15 @@ class TodaysEntriesWidget extends St.ScrollView {
                 secs = Math.floor((Date.now() - start) / 1000);
             }
 
+            const projectName = projects.find(p => p.id === entry.projectId)?.name;
+            const descText = [entry.description || '(no description)',
+                projectName ? `@${projectName}` : null]
+                .filter(Boolean).join(' ');
+
             const timeLabel = new St.Label({ style_class: 'cell-label', text: timeStr });
             const descLabel = new St.Label({
                 style_class: 'cell-label',
-                text: entry.description || '(no description)',
+                text: descText,
             });
             const durLabel = new St.Label({
                 style_class: 'cell-label',
@@ -185,15 +214,18 @@ class ClockifyIndicator extends PanelMenu.Button {
         this._session      = new Soup.Session();
         this._currentEntry = null;    // in-progress Clockify time entry
         this._userId       = null;    // cached user id (reset on api-key change)
-        this._activities   = [];      // descriptions used for autocomplete
+        this._activities   = [];      // "description @project" strings for autocomplete
+        this._projects     = [];      // all workspace projects [{id, name}]
         this._refreshTimeout = null;
 
-        // Invalidate cached userId when the API key changes
+        // Invalidate cached state when the API key changes
         this._settings.connect('changed::api-key', () => {
-            this._userId = null;
+            this._userId       = null;
             this._currentEntry = null;
-            this._activities = [];
+            this._activities   = [];
+            this._projects     = [];
             this._refreshPanelLabel();
+            this._loadProjects();
         });
 
         // ── Panel label / icon ──
@@ -227,6 +259,14 @@ class ClockifyIndicator extends PanelMenu.Button {
             return GLib.SOURCE_CONTINUE;
         });
 
+        // Reload projects and clear userId cache when workspace changes
+        this._settings.connect('changed::workspace-id', () => {
+            this._userId   = null;
+            this._projects = [];
+            this._loadProjects();
+        });
+
+        this._loadProjects();
         this._loadCurrentEntry();
     }
 
@@ -243,7 +283,9 @@ class ClockifyIndicator extends PanelMenu.Button {
             text: 'What are you working on?',
         }));
 
-        this._activityEntry = new ActivityEntry(() => this._activities);
+        this._activityEntry = new ActivityEntry(
+            () => this._activities,
+            () => this._projects);
         this._activityEntry.clutter_text.connect('activate', () => this._onEntryActivated());
         mainBox.add_child(this._activityEntry);
 
@@ -291,11 +333,23 @@ class ClockifyIndicator extends PanelMenu.Button {
     // ── Entry activation (press Enter) ────────────────────────────────────────
 
     async _onEntryActivated() {
-        const text = this._activityEntry.get_text().trim();
-        if (!text) return;
+        const raw = this._activityEntry.get_text().trim();
+        if (!raw) return;
         this._activityEntry.set_text('');
         this._activityEntry._prevText = '';
-        await this._startTimer(text, null);
+
+        const atIdx = raw.lastIndexOf('@');
+        let description, projectId = null;
+        if (atIdx !== -1) {
+            description = raw.slice(0, atIdx).trim();
+            const projectName = raw.slice(atIdx + 1).trim();
+            projectId = this._projects.find(
+                p => p.name.toLowerCase() === projectName.toLowerCase())?.id || null;
+        } else {
+            description = raw;
+        }
+
+        await this._startTimer(description, projectId);
         this.menu.close();
     }
 
@@ -338,6 +392,17 @@ class ClockifyIndicator extends PanelMenu.Button {
 
     // ── Data loading ──────────────────────────────────────────────────────────
 
+    // Fetch all workspace projects once on startup / workspace change.
+    // Projects are stable — no periodic refresh needed.
+    async _loadProjects() {
+        const wid = this._settings.get_string('workspace-id');
+        if (!wid || !this._settings.get_string('api-key')) return;
+        try {
+            this._projects = await this._apiRequest('GET',
+                `/workspaces/${wid}/projects?page-size=500&archived=false`) || [];
+        } catch { this._projects = []; }
+    }
+
     async _loadCurrentEntry() {
         const apiKey = this._settings.get_string('api-key');
         const wid    = this._settings.get_string('workspace-id');
@@ -370,15 +435,19 @@ class ClockifyIndicator extends PanelMenu.Button {
             const recentEntries = await this._apiRequest('GET',
                 `/workspaces/${wid}/user/${uid}/time-entries?start=${weekStart}&page-size=100`);
 
-            this._todaysWidget.refresh(entries || [], this._currentEntry);
+            this._todaysWidget.refresh(entries || [], this._currentEntry, this._projects);
 
-            // Build autocomplete list from last 7 days: unique descriptions, most-recent first
+            // Build autocomplete list from last 7 days: "description @project" strings,
+            // unique, most-recent first.  7-day window gives richer suggestions than today only.
             const seen = new Set();
             this._activities = [];
             for (const e of (recentEntries || [])) {
-                if (e.description && !seen.has(e.description)) {
-                    seen.add(e.description);
-                    this._activities.push(e.description);
+                if (!e.description) continue;
+                const projectName = this._projects.find(p => p.id === e.projectId)?.name;
+                const key = projectName ? `${e.description} @${projectName}` : e.description;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    this._activities.push(key);
                 }
             }
 
