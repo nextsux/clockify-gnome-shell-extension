@@ -14,11 +14,17 @@ all: compile
 compile:
 	glib-compile-schemas schemas/
 
-# Install for the current user (symlink-free, full copy)
+# Install for the current user.
+# If the extension dir is already a symlink to this repo, skip the copy (files are identical).
 install-user: compile
-	mkdir -p ~/.local/share/gnome-shell/extensions/$(UUID)
-	cp $(SOURCES) ~/.local/share/gnome-shell/extensions/$(UUID)/
-	cp -r schemas/ ~/.local/share/gnome-shell/extensions/$(UUID)/schemas/
+	@DEST=~/.local/share/gnome-shell/extensions/$(UUID); \
+	if [ -L "$$DEST" ] && [ "$$(readlink -f $$DEST)" = "$$(pwd)" ]; then \
+	    echo "Extension already symlinked to this repo — skipping copy."; \
+	else \
+	    mkdir -p "$$DEST"; \
+	    cp $(SOURCES) "$$DEST/"; \
+	    cp -r schemas/ "$$DEST/schemas/"; \
+	fi
 
 # Install system-wide (requires root)
 install: compile
