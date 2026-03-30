@@ -13,6 +13,9 @@ import Soup from 'gi://Soup';
 import { ExtensionPreferences, gettext as _ }
     from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
 
+// The prefs process doesn't auto-promisify Soup like the Shell process does.
+Gio._promisify(Soup.Session.prototype, 'send_and_read_async');
+
 const CLOCKIFY_API_URL = 'https://api.clockify.me/api/v1';
 
 // ─── HotkeyRow ────────────────────────────────────────────────────────────────
