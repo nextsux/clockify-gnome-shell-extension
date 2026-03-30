@@ -31,9 +31,9 @@ function formatDuration(totalSeconds) {
 }
 
 function formatDurationHuman(totalSeconds) {
+    if (totalSeconds < 60) return `${Math.max(0, totalSeconds)}s`;
     const h = Math.floor(totalSeconds / 3600);
     const m = Math.floor((totalSeconds % 3600) / 60);
-    if (h === 0 && m === 0) return _('Just started');
     return `${h > 0 ? h + _('h ') : ''}${m > 0 ? m + _('min') : ''}`.trim();
 }
 
