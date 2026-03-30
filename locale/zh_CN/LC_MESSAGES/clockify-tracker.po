@@ -1,0 +1,110 @@
+# Simplified Chinese translation for Clockify Tracker GNOME Shell extension
+# Copyright (C) 2025
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: zh_CN\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "activity @project…"
+msgstr "任务 @项目…"
+
+msgid "h "
+msgstr "小时"
+
+msgid "min"
+msgstr "分"
+
+msgid "(no description)"
+msgstr "(无描述)"
+
+msgid "No activity"
+msgstr "无活动"
+
+msgid "Tracking"
+msgstr "记录中"
+
+msgid "What are you working on?"
+msgstr "您在做什么？"
+
+msgid "Today's activities"
+msgstr "今日活动"
+
+msgid "Stop Tracking"
+msgstr "停止记录"
+
+msgid "Extension Settings"
+msgstr "扩展设置"
+
+msgid "Total: %s"
+msgstr "总计: %s"
+
+msgid "No API key — open Extension Settings to configure"
+msgstr "无API密钥 — 请打开扩展设置进行配置"
+
+msgid "Configure API key and workspace in Extension Settings first"
+msgstr "请先在扩展设置中配置API密钥和工作区"
+
+msgid "Workspace not configured"
+msgstr "工作区未配置"
+
+msgid "Failed to create project: %s"
+msgstr "创建项目失败: %s"
+
+msgid "Failed to load entries: %s"
+msgstr "加载条目失败: %s"
+
+msgid "Failed to start timer: %s"
+msgstr "启动计时器失败: %s"
+
+msgid "Clockify Error"
+msgstr "Clockify错误"
+
+msgid "Failed to stop timer: %s"
+msgstr "停止计时器失败: %s"
+
+msgid "Clockify Credentials"
+msgstr "Clockify凭据"
+
+msgid "API Key"
+msgstr "API密钥"
+
+msgid "Workspace"
+msgstr "工作区"
+
+msgid "Enter an API key first"
+msgstr "请先输入API密钥"
+
+msgid "Loading…"
+msgstr "加载中…"
+
+msgid "Invalid API key (HTTP %s)"
+msgstr "API密钥无效 (HTTP %s)"
+
+msgid "Unexpected response from server"
+msgstr "服务器返回意外响应"
+
+msgid "Network error — check your connection"
+msgstr "网络错误 — 请检查您的连接"
+
+msgid "Panel Appearance"
+msgstr "面板外观"
+
+msgid "Panel style"
+msgstr "面板样式"
+
+msgid "Label only (activity name + elapsed time)"
+msgstr "仅显示标签 (活动名称 + 经过时间)"
+
+msgid "Icon only"
+msgstr "仅显示图标"
+
+msgid "Icon and label"
+msgstr "图标和标签"
+
+msgid "Keyboard Shortcut"
+msgstr "键盘快捷键"
+
+msgid "Toggle dropdown"
+msgstr "显示/隐藏菜单"

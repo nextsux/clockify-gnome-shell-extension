@@ -1,0 +1,110 @@
+# Japanese translation for Clockify Tracker GNOME Shell extension
+# Copyright (C) 2025
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: ja\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+msgid "activity @project…"
+msgstr "作業内容 @プロジェクト…"
+
+msgid "h "
+msgstr "時間"
+
+msgid "min"
+msgstr "分"
+
+msgid "(no description)"
+msgstr "(説明なし)"
+
+msgid "No activity"
+msgstr "アクティビティなし"
+
+msgid "Tracking"
+msgstr "記録中"
+
+msgid "What are you working on?"
+msgstr "何をしていますか？"
+
+msgid "Today's activities"
+msgstr "本日のアクティビティ"
+
+msgid "Stop Tracking"
+msgstr "記録を停止"
+
+msgid "Extension Settings"
+msgstr "拡張機能の設定"
+
+msgid "Total: %s"
+msgstr "合計: %s"
+
+msgid "No API key — open Extension Settings to configure"
+msgstr "APIキーがありません — 拡張機能の設定を開いてください"
+
+msgid "Configure API key and workspace in Extension Settings first"
+msgstr "まず拡張機能の設定でAPIキーとワークスペースを設定してください"
+
+msgid "Workspace not configured"
+msgstr "ワークスペースが設定されていません"
+
+msgid "Failed to create project: %s"
+msgstr "プロジェクトを作成できませんでした: %s"
+
+msgid "Failed to load entries: %s"
+msgstr "エントリを読み込めませんでした: %s"
+
+msgid "Failed to start timer: %s"
+msgstr "タイマーを開始できませんでした: %s"
+
+msgid "Clockify Error"
+msgstr "Clockifyエラー"
+
+msgid "Failed to stop timer: %s"
+msgstr "タイマーを停止できませんでした: %s"
+
+msgid "Clockify Credentials"
+msgstr "Clockify認証情報"
+
+msgid "API Key"
+msgstr "APIキー"
+
+msgid "Workspace"
+msgstr "ワークスペース"
+
+msgid "Enter an API key first"
+msgstr "まずAPIキーを入力してください"
+
+msgid "Loading…"
+msgstr "読み込み中…"
+
+msgid "Invalid API key (HTTP %s)"
+msgstr "無効なAPIキー (HTTP %s)"
+
+msgid "Unexpected response from server"
+msgstr "サーバーからの予期しない応答"
+
+msgid "Network error — check your connection"
+msgstr "ネットワークエラー — 接続を確認してください"
+
+msgid "Panel Appearance"
+msgstr "パネルの外観"
+
+msgid "Panel style"
+msgstr "パネルスタイル"
+
+msgid "Label only (activity name + elapsed time)"
+msgstr "ラベルのみ (アクティビティ名 + 経過時間)"
+
+msgid "Icon only"
+msgstr "アイコンのみ"
+
+msgid "Icon and label"
+msgstr "アイコンとラベル"
+
+msgid "Keyboard Shortcut"
+msgstr "キーボードショートカット"
+
+msgid "Toggle dropdown"
+msgstr "ドロップダウンの表示/非表示"

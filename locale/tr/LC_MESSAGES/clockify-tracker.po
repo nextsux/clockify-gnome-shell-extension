@@ -1,0 +1,110 @@
+# Turkish translation for Clockify Tracker GNOME Shell extension
+# Copyright (C) 2025
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: tr\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+msgid "activity @project…"
+msgstr "aktivite @proje…"
+
+msgid "h "
+msgstr "s "
+
+msgid "min"
+msgstr "dk"
+
+msgid "(no description)"
+msgstr "(açıklama yok)"
+
+msgid "No activity"
+msgstr "Aktivite yok"
+
+msgid "Tracking"
+msgstr "Takip ediliyor"
+
+msgid "What are you working on?"
+msgstr "Ne üzerinde çalışıyorsunuz?"
+
+msgid "Today's activities"
+msgstr "Bugünkü aktiviteler"
+
+msgid "Stop Tracking"
+msgstr "Takibi durdur"
+
+msgid "Extension Settings"
+msgstr "Eklenti ayarları"
+
+msgid "Total: %s"
+msgstr "Toplam: %s"
+
+msgid "No API key — open Extension Settings to configure"
+msgstr "API anahtarı yok — eklenti ayarlarını açın"
+
+msgid "Configure API key and workspace in Extension Settings first"
+msgstr "Önce API anahtarını ve çalışma alanını ayarlarda yapılandırın"
+
+msgid "Workspace not configured"
+msgstr "Çalışma alanı yapılandırılmamış"
+
+msgid "Failed to create project: %s"
+msgstr "Proje oluşturulamadı: %s"
+
+msgid "Failed to load entries: %s"
+msgstr "Girişler yüklenemedi: %s"
+
+msgid "Failed to start timer: %s"
+msgstr "Zamanlayıcı başlatılamadı: %s"
+
+msgid "Clockify Error"
+msgstr "Clockify Hatası"
+
+msgid "Failed to stop timer: %s"
+msgstr "Zamanlayıcı durdurulamadı: %s"
+
+msgid "Clockify Credentials"
+msgstr "Clockify Kimlik Bilgileri"
+
+msgid "API Key"
+msgstr "API Anahtarı"
+
+msgid "Workspace"
+msgstr "Çalışma Alanı"
+
+msgid "Enter an API key first"
+msgstr "Önce bir API anahtarı girin"
+
+msgid "Loading…"
+msgstr "Yükleniyor…"
+
+msgid "Invalid API key (HTTP %s)"
+msgstr "Geçersiz API anahtarı (HTTP %s)"
+
+msgid "Unexpected response from server"
+msgstr "Sunucudan beklenmeyen yanıt"
+
+msgid "Network error — check your connection"
+msgstr "Ağ hatası — bağlantınızı kontrol edin"
+
+msgid "Panel Appearance"
+msgstr "Panel Görünümü"
+
+msgid "Panel style"
+msgstr "Panel stili"
+
+msgid "Label only (activity name + elapsed time)"
+msgstr "Yalnızca etiket (aktivite adı + geçen süre)"
+
+msgid "Icon only"
+msgstr "Yalnızca simge"
+
+msgid "Icon and label"
+msgstr "Simge ve etiket"
+
+msgid "Keyboard Shortcut"
+msgstr "Klavye Kısayolu"
+
+msgid "Toggle dropdown"
+msgstr "Menüyü göster/gizle"

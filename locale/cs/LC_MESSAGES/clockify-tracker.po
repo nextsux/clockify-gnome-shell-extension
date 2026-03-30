@@ -7,13 +7,8 @@ msgstr ""
 "Language: cs\n"
 "Plural-Forms: nplurals=3; plural=(n==1) ? 0 : (n>=2 && n<=4) ? 1 : 2;\n"
 
-# extension.js — ActivityEntry
-msgid "activity @project\342\200\246"
-msgstr "aktivita @projekt\342\200\246"
-
-# extension.js — formatDurationHuman
-msgid "Just started"
-msgstr "Právě začalo"
+msgid "activity @project…"
+msgstr "aktivita @projekt…"
 
 msgid "h "
 msgstr "h "
@@ -21,18 +16,15 @@ msgstr "h "
 msgid "min"
 msgstr "min"
 
-# extension.js — TodaysEntriesWidget
 msgid "(no description)"
 msgstr "(bez popisu)"
 
-# extension.js — ClockifyIndicator panel label
 msgid "No activity"
 msgstr "Žádná aktivita"
 
 msgid "Tracking"
 msgstr "Sledování"
 
-# extension.js — menu items
 msgid "What are you working on?"
 msgstr "Na čem právě pracuješ?"
 
@@ -45,22 +37,20 @@ msgstr "Zastavit sledování"
 msgid "Extension Settings"
 msgstr "Nastavení rozšíření"
 
-# extension.js — total label
 msgid "Total: %s"
 msgstr "Celkem: %s"
 
-# extension.js — error / notification messages
-msgid "No API key \342\200\224 open Extension Settings to configure"
-msgstr "Chybí API klíč \342\200\224 otevřete nastavení rozšíření"
-
-msgid "Please configure API key and workspace in Extension Settings"
-msgstr "Nastavte prosím API klíč a workspace v nastavení rozšíření"
+msgid "No API key — open Extension Settings to configure"
+msgstr "Chybí API klíč — otevřete nastavení rozšíření"
 
 msgid "Configure API key and workspace in Extension Settings first"
 msgstr "Nejprve nastavte API klíč a workspace v nastavení rozšíření"
 
-msgid "Clockify Error"
-msgstr "Chyba Clockify"
+msgid "Workspace not configured"
+msgstr "Pracovní prostor není nakonfigurován"
+
+msgid "Failed to create project: %s"
+msgstr "Nepodařilo se vytvořit projekt: %s"
 
 msgid "Failed to load entries: %s"
 msgstr "Nepodařilo se načíst záznamy: %s"
@@ -68,22 +58,41 @@ msgstr "Nepodařilo se načíst záznamy: %s"
 msgid "Failed to start timer: %s"
 msgstr "Nepodařilo se spustit časovač: %s"
 
+msgid "Clockify Error"
+msgstr "Chyba Clockify"
+
 msgid "Failed to stop timer: %s"
 msgstr "Nepodařilo se zastavit časovač: %s"
 
-# prefs.js — credentials group
 msgid "Clockify Credentials"
 msgstr "Přihlašovací údaje Clockify"
 
 msgid "API Key"
 msgstr "API klíč"
 
-msgid "Workspace ID"
-msgstr "ID pracovního prostoru"
+msgid "Workspace"
+msgstr "Pracovní prostor"
 
-# prefs.js — panel appearance
+msgid "Enter an API key first"
+msgstr "Nejprve zadejte API klíč"
+
+msgid "Loading…"
+msgstr "Načítání…"
+
+msgid "Invalid API key (HTTP %s)"
+msgstr "Neplatný API klíč (HTTP %s)"
+
+msgid "Unexpected response from server"
+msgstr "Neočekávaná odpověď serveru"
+
+msgid "Network error — check your connection"
+msgstr "Chyba sítě — zkontrolujte připojení"
+
 msgid "Panel Appearance"
 msgstr "Vzhled panelu"
+
+msgid "Panel style"
+msgstr "Styl panelu"
 
 msgid "Label only (activity name + elapsed time)"
 msgstr "Pouze popisek (název aktivity + uplynulý čas)"
@@ -94,7 +103,6 @@ msgstr "Pouze ikona"
 msgid "Icon and label"
 msgstr "Ikona a popisek"
 
-# prefs.js — keyboard shortcut
 msgid "Keyboard Shortcut"
 msgstr "Klávesová zkratka"
 

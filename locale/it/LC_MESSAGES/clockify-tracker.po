@@ -1,0 +1,110 @@
+# Italian translation for Clockify Tracker GNOME Shell extension
+# Copyright (C) 2025
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: it\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "activity @project…"
+msgstr "attività @progetto…"
+
+msgid "h "
+msgstr "h "
+
+msgid "min"
+msgstr "min"
+
+msgid "(no description)"
+msgstr "(nessuna descrizione)"
+
+msgid "No activity"
+msgstr "Nessuna attività"
+
+msgid "Tracking"
+msgstr "In registrazione"
+
+msgid "What are you working on?"
+msgstr "A cosa stai lavorando?"
+
+msgid "Today's activities"
+msgstr "Attività di oggi"
+
+msgid "Stop Tracking"
+msgstr "Interrompi registrazione"
+
+msgid "Extension Settings"
+msgstr "Impostazioni estensione"
+
+msgid "Total: %s"
+msgstr "Totale: %s"
+
+msgid "No API key — open Extension Settings to configure"
+msgstr "Nessuna chiave API — apri le impostazioni dell'estensione"
+
+msgid "Configure API key and workspace in Extension Settings first"
+msgstr "Configura prima la chiave API e l'area di lavoro nelle impostazioni"
+
+msgid "Workspace not configured"
+msgstr "Area di lavoro non configurata"
+
+msgid "Failed to create project: %s"
+msgstr "Impossibile creare il progetto: %s"
+
+msgid "Failed to load entries: %s"
+msgstr "Impossibile caricare le voci: %s"
+
+msgid "Failed to start timer: %s"
+msgstr "Impossibile avviare il timer: %s"
+
+msgid "Clockify Error"
+msgstr "Errore Clockify"
+
+msgid "Failed to stop timer: %s"
+msgstr "Impossibile fermare il timer: %s"
+
+msgid "Clockify Credentials"
+msgstr "Credenziali Clockify"
+
+msgid "API Key"
+msgstr "Chiave API"
+
+msgid "Workspace"
+msgstr "Area di lavoro"
+
+msgid "Enter an API key first"
+msgstr "Inserisci prima una chiave API"
+
+msgid "Loading…"
+msgstr "Caricamento…"
+
+msgid "Invalid API key (HTTP %s)"
+msgstr "Chiave API non valida (HTTP %s)"
+
+msgid "Unexpected response from server"
+msgstr "Risposta inattesa dal server"
+
+msgid "Network error — check your connection"
+msgstr "Errore di rete — verifica la connessione"
+
+msgid "Panel Appearance"
+msgstr "Aspetto del pannello"
+
+msgid "Panel style"
+msgstr "Stile pannello"
+
+msgid "Label only (activity name + elapsed time)"
+msgstr "Solo etichetta (nome attività + tempo trascorso)"
+
+msgid "Icon only"
+msgstr "Solo icona"
+
+msgid "Icon and label"
+msgstr "Icona ed etichetta"
+
+msgid "Keyboard Shortcut"
+msgstr "Scorciatoia da tastiera"
+
+msgid "Toggle dropdown"
+msgstr "Mostra/nascondi menu"

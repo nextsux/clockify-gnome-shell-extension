@@ -1,0 +1,110 @@
+# Russian translation for Clockify Tracker GNOME Shell extension
+# Copyright (C) 2025
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: ru\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "activity @project…"
+msgstr "задача @проект…"
+
+msgid "h "
+msgstr "ч "
+
+msgid "min"
+msgstr "мин"
+
+msgid "(no description)"
+msgstr "(нет описания)"
+
+msgid "No activity"
+msgstr "Нет активности"
+
+msgid "Tracking"
+msgstr "Отслеживается"
+
+msgid "What are you working on?"
+msgstr "Над чем вы работаете?"
+
+msgid "Today's activities"
+msgstr "Сегодняшние задачи"
+
+msgid "Stop Tracking"
+msgstr "Остановить отслеживание"
+
+msgid "Extension Settings"
+msgstr "Настройки расширения"
+
+msgid "Total: %s"
+msgstr "Итого: %s"
+
+msgid "No API key — open Extension Settings to configure"
+msgstr "Нет ключа API — откройте настройки расширения"
+
+msgid "Configure API key and workspace in Extension Settings first"
+msgstr "Сначала настройте ключ API и рабочее пространство в настройках"
+
+msgid "Workspace not configured"
+msgstr "Рабочее пространство не настроено"
+
+msgid "Failed to create project: %s"
+msgstr "Не удалось создать проект: %s"
+
+msgid "Failed to load entries: %s"
+msgstr "Не удалось загрузить записи: %s"
+
+msgid "Failed to start timer: %s"
+msgstr "Не удалось запустить таймер: %s"
+
+msgid "Clockify Error"
+msgstr "Ошибка Clockify"
+
+msgid "Failed to stop timer: %s"
+msgstr "Не удалось остановить таймер: %s"
+
+msgid "Clockify Credentials"
+msgstr "Учётные данные Clockify"
+
+msgid "API Key"
+msgstr "Ключ API"
+
+msgid "Workspace"
+msgstr "Рабочее пространство"
+
+msgid "Enter an API key first"
+msgstr "Сначала введите ключ API"
+
+msgid "Loading…"
+msgstr "Загрузка…"
+
+msgid "Invalid API key (HTTP %s)"
+msgstr "Неверный ключ API (HTTP %s)"
+
+msgid "Unexpected response from server"
+msgstr "Неожиданный ответ сервера"
+
+msgid "Network error — check your connection"
+msgstr "Ошибка сети — проверьте соединение"
+
+msgid "Panel Appearance"
+msgstr "Внешний вид панели"
+
+msgid "Panel style"
+msgstr "Стиль панели"
+
+msgid "Label only (activity name + elapsed time)"
+msgstr "Только метка (название задачи + затраченное время)"
+
+msgid "Icon only"
+msgstr "Только значок"
+
+msgid "Icon and label"
+msgstr "Значок и метка"
+
+msgid "Keyboard Shortcut"
+msgstr "Сочетание клавиш"
+
+msgid "Toggle dropdown"
+msgstr "Показать/скрыть меню"

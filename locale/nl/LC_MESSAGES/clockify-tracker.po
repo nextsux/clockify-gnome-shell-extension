@@ -1,0 +1,110 @@
+# Dutch translation for Clockify Tracker GNOME Shell extension
+# Copyright (C) 2025
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: nl\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+msgid "activity @project…"
+msgstr "activiteit @project…"
+
+msgid "h "
+msgstr "u "
+
+msgid "min"
+msgstr "min"
+
+msgid "(no description)"
+msgstr "(geen beschrijving)"
+
+msgid "No activity"
+msgstr "Geen activiteit"
+
+msgid "Tracking"
+msgstr "Bezig"
+
+msgid "What are you working on?"
+msgstr "Waar werk je aan?"
+
+msgid "Today's activities"
+msgstr "Activiteiten van vandaag"
+
+msgid "Stop Tracking"
+msgstr "Tracking stoppen"
+
+msgid "Extension Settings"
+msgstr "Extensie-instellingen"
+
+msgid "Total: %s"
+msgstr "Totaal: %s"
+
+msgid "No API key — open Extension Settings to configure"
+msgstr "Geen API-sleutel — open de extensie-instellingen"
+
+msgid "Configure API key and workspace in Extension Settings first"
+msgstr "Configureer eerst API-sleutel en werkruimte in de instellingen"
+
+msgid "Workspace not configured"
+msgstr "Werkruimte niet geconfigureerd"
+
+msgid "Failed to create project: %s"
+msgstr "Project kon niet worden aangemaakt: %s"
+
+msgid "Failed to load entries: %s"
+msgstr "Vermeldingen konden niet worden geladen: %s"
+
+msgid "Failed to start timer: %s"
+msgstr "Timer kon niet worden gestart: %s"
+
+msgid "Clockify Error"
+msgstr "Clockify-fout"
+
+msgid "Failed to stop timer: %s"
+msgstr "Timer kon niet worden gestopt: %s"
+
+msgid "Clockify Credentials"
+msgstr "Clockify-aanmeldgegevens"
+
+msgid "API Key"
+msgstr "API-sleutel"
+
+msgid "Workspace"
+msgstr "Werkruimte"
+
+msgid "Enter an API key first"
+msgstr "Voer eerst een API-sleutel in"
+
+msgid "Loading…"
+msgstr "Laden…"
+
+msgid "Invalid API key (HTTP %s)"
+msgstr "Ongeldige API-sleutel (HTTP %s)"
+
+msgid "Unexpected response from server"
+msgstr "Onverwacht serverantwoord"
+
+msgid "Network error — check your connection"
+msgstr "Netwerkfout — controleer uw verbinding"
+
+msgid "Panel Appearance"
+msgstr "Paneelweergave"
+
+msgid "Panel style"
+msgstr "Paneelstijl"
+
+msgid "Label only (activity name + elapsed time)"
+msgstr "Alleen label (activiteitsnaam + verstreken tijd)"
+
+msgid "Icon only"
+msgstr "Alleen pictogram"
+
+msgid "Icon and label"
+msgstr "Pictogram en label"
+
+msgid "Keyboard Shortcut"
+msgstr "Sneltoets"
+
+msgid "Toggle dropdown"
+msgstr "Menu tonen/verbergen"

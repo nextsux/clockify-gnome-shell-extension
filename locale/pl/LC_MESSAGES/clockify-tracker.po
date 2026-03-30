@@ -1,0 +1,110 @@
+# Polish translation for Clockify Tracker GNOME Shell extension
+# Copyright (C) 2025
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Language: pl\n"
+"Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+msgid "activity @project…"
+msgstr "czynność @projekt…"
+
+msgid "h "
+msgstr "g "
+
+msgid "min"
+msgstr "min"
+
+msgid "(no description)"
+msgstr "(brak opisu)"
+
+msgid "No activity"
+msgstr "Brak aktywności"
+
+msgid "Tracking"
+msgstr "Śledzenie"
+
+msgid "What are you working on?"
+msgstr "Nad czym pracujesz?"
+
+msgid "Today's activities"
+msgstr "Dzisiejsze aktywności"
+
+msgid "Stop Tracking"
+msgstr "Zatrzymaj śledzenie"
+
+msgid "Extension Settings"
+msgstr "Ustawienia rozszerzenia"
+
+msgid "Total: %s"
+msgstr "Razem: %s"
+
+msgid "No API key — open Extension Settings to configure"
+msgstr "Brak klucza API — otwórz ustawienia rozszerzenia"
+
+msgid "Configure API key and workspace in Extension Settings first"
+msgstr "Najpierw skonfiguruj klucz API i obszar roboczy w ustawieniach"
+
+msgid "Workspace not configured"
+msgstr "Obszar roboczy nie jest skonfigurowany"
+
+msgid "Failed to create project: %s"
+msgstr "Nie udało się utworzyć projektu: %s"
+
+msgid "Failed to load entries: %s"
+msgstr "Nie udało się załadować wpisów: %s"
+
+msgid "Failed to start timer: %s"
+msgstr "Nie udało się uruchomić timera: %s"
+
+msgid "Clockify Error"
+msgstr "Błąd Clockify"
+
+msgid "Failed to stop timer: %s"
+msgstr "Nie udało się zatrzymać timera: %s"
+
+msgid "Clockify Credentials"
+msgstr "Dane logowania Clockify"
+
+msgid "API Key"
+msgstr "Klucz API"
+
+msgid "Workspace"
+msgstr "Obszar roboczy"
+
+msgid "Enter an API key first"
+msgstr "Najpierw wpisz klucz API"
+
+msgid "Loading…"
+msgstr "Ładowanie…"
+
+msgid "Invalid API key (HTTP %s)"
+msgstr "Nieprawidłowy klucz API (HTTP %s)"
+
+msgid "Unexpected response from server"
+msgstr "Nieoczekiwana odpowiedź serwera"
+
+msgid "Network error — check your connection"
+msgstr "Błąd sieci — sprawdź połączenie"
+
+msgid "Panel Appearance"
+msgstr "Wygląd panelu"
+
+msgid "Panel style"
+msgstr "Styl panelu"
+
+msgid "Label only (activity name + elapsed time)"
+msgstr "Tylko etykieta (nazwa aktywności + czas)"
+
+msgid "Icon only"
+msgstr "Tylko ikona"
+
+msgid "Icon and label"
+msgstr "Ikona i etykieta"
+
+msgid "Keyboard Shortcut"
+msgstr "Skrót klawiszowy"
+
+msgid "Toggle dropdown"
+msgstr "Pokaż/ukryj menu"
