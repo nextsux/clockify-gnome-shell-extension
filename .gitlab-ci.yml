@@ -43,12 +43,10 @@ build:package:
     - when: always
 
 # ── Publish ───────────────────────────────────────────────────────────────────
-# Upload to extensions.gnome.org using ego-upload (manual trigger on tags).
+# Upload to extensions.gnome.org using gnome-extension-uploader (PyPI).
 # Requires CI variables:
 #   EGO_USERNAME — your e.g.o account username
 #   EGO_PASSWORD — your e.g.o account password
-#
-# ego-upload: https://github.com/nE0sIghT/ego-upload
 
 publish:ego:
   stage: publish
@@ -56,10 +54,9 @@ publish:ego:
   needs:
     - build:package
   before_script:
-    - pip install ego-upload
+    - pip install gnome-extension-uploader
   script:
-    - ego-upload --username "$EGO_USERNAME" --password "$EGO_PASSWORD"
-        dist/$UUID.zip
+    - geu publish --username "$EGO_USERNAME" --password "$EGO_PASSWORD" dist/$UUID.zip
   rules:
     # Only run manually on version tags (e.g. v2, v3 — e.g.o uses integers)
     - if: '$CI_COMMIT_TAG =~ /^v\d+$/'
