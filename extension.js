@@ -41,6 +41,16 @@ function elapsedSeconds(isoStart) {
     return Math.floor((Date.now() - new Date(isoStart).getTime()) / 1000);
 }
 
+// Parse an ISO 8601 duration string returned by Clockify (e.g. "PT1H30M", "PT45S").
+function parseDuration(iso) {
+    if (!iso) return null;
+    const m = iso.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
+    if (!m) return null;
+    return (parseInt(m[1] || 0) * 3600) +
+           (parseInt(m[2] || 0) * 60) +
+           parseInt(m[3] || 0);
+}
+
 
 // ─── ActivityEntry ────────────────────────────────────────────────────────────
 //
@@ -163,7 +173,10 @@ class TodaysEntriesWidget extends St.ScrollView {
                 const eh  = String(end.getHours()).padStart(2, '0');
                 const em  = String(end.getMinutes()).padStart(2, '0');
                 timeStr = `${sh}:${sm} - ${eh}:${em}`;
-                secs = Math.floor((end - start) / 1000);
+                // Prefer the server-supplied duration string over client arithmetic
+                // to avoid GJS date-parsing edge cases.
+                secs = parseDuration(entry.timeInterval.duration) ??
+                       Math.floor((end - start) / 1000);
             } else {
                 timeStr = `${sh}:${sm} \u2013`;   // en-dash for running entry
                 secs = Math.floor((Date.now() - start) / 1000);
@@ -512,8 +525,9 @@ class ClockifyIndicator extends PanelMenu.Button {
             let totalSecs = 0;
             for (const e of todayEntries) {
                 if (e.timeInterval.end) {
-                    totalSecs += Math.floor(
-                        (new Date(e.timeInterval.end) - new Date(e.timeInterval.start)) / 1000);
+                    totalSecs += parseDuration(e.timeInterval.duration) ??
+                        Math.floor(
+                            (new Date(e.timeInterval.end) - new Date(e.timeInterval.start)) / 1000);
                 }
             }
             if (this._currentEntry)
