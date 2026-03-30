@@ -7,9 +7,13 @@ import Adw from 'gi://Adw';
 import Gio from 'gi://Gio';
 import Gtk from 'gi://Gtk';
 import GObject from 'gi://GObject';
+import GLib from 'gi://GLib';
+import Soup from 'gi://Soup';
 
 import { ExtensionPreferences, gettext as _ }
     from 'resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js';
+
+const CLOCKIFY_API_URL = 'https://api.clockify.me/api/v1';
 
 // ─── HotkeyRow ────────────────────────────────────────────────────────────────
 // Adw.EntryRow subclass for editing a keybinding stored as a GSettings strv.
@@ -61,20 +65,107 @@ class HotkeyRow extends Adw.EntryRow {
 export default class ClockifyPrefs extends ExtensionPreferences {
     fillPreferencesWindow(window) {
         const settings = this.getSettings();
-        const page = new Adw.PreferencesPage();
+        const session  = new Soup.Session();
+        const page     = new Adw.PreferencesPage();
 
         // ── Clockify Credentials ──────────────────────────────────────────────
         const credGroup = new Adw.PreferencesGroup({ title: _('Clockify Credentials') });
         page.add(credGroup);
 
-        // API key — bound directly: saved on every change, no Apply button needed
+        // API key — bound directly so it saves on every keystroke
         const apiKeyRow = new Adw.PasswordEntryRow({ title: _('API Key') });
         settings.bind('api-key', apiKeyRow, 'text', Gio.SettingsBindFlags.DEFAULT);
         credGroup.add(apiKeyRow);
 
-        const workspaceRow = new Adw.EntryRow({ title: _('Workspace ID') });
-        settings.bind('workspace-id', workspaceRow, 'text', Gio.SettingsBindFlags.DEFAULT);
+        // ── Workspace ─────────────────────────────────────────────────────────
+        // Populated from the API; falls back gracefully when offline / no key yet.
+
+        const workspaceModel = new Gtk.StringList();
+        const workspaceRow   = new Adw.ComboRow({
+            title:      _('Workspace'),
+            subtitle:   _('Enter an API key first'),
+            model:      workspaceModel,
+            sensitive:  false,
+        });
         credGroup.add(workspaceRow);
+
+        // Spinner suffix shown while loading
+        const spinner = new Gtk.Spinner();
+        workspaceRow.add_suffix(spinner);
+
+        // In-memory list of workspaces matching the model positions
+        let workspaces = [];
+        let blockSelectionHandler = false;
+
+        // Populate combo from a fetched array [{id, name}]
+        const populateWorkspaces = ws => {
+            workspaces = ws;
+
+            blockSelectionHandler = true;
+
+            // Repopulate model
+            while (workspaceModel.get_n_items() > 0)
+                workspaceModel.remove(0);
+            ws.forEach(w => workspaceModel.append(w.name));
+
+            // Select the currently-saved workspace (or first if none matches)
+            const currentId = settings.get_string('workspace-id');
+            const idx = ws.findIndex(w => w.id === currentId);
+            workspaceRow.set_selected(idx >= 0 ? idx : 0);
+
+            // If nothing was saved yet, persist the first workspace automatically
+            if (idx < 0 && ws.length > 0)
+                settings.set_string('workspace-id', ws[0].id);
+
+            blockSelectionHandler = false;
+
+            workspaceRow.subtitle   = '';
+            workspaceRow.sensitive  = true;
+        };
+
+        workspaceRow.connect('notify::selected', () => {
+            if (blockSelectionHandler) return;
+            const ws = workspaces[workspaceRow.get_selected()];
+            if (ws) settings.set_string('workspace-id', ws.id);
+        });
+
+        // Fetch workspaces from the API
+        const fetchWorkspaces = async () => {
+            const apiKey = settings.get_string('api-key');
+            if (!apiKey) {
+                workspaceRow.subtitle  = _('Enter an API key first');
+                workspaceRow.sensitive = false;
+                return;
+            }
+
+            spinner.start();
+            workspaceRow.subtitle  = _('Loading\u2026');
+            workspaceRow.sensitive = false;
+
+            try {
+                const msg = Soup.Message.new('GET', `${CLOCKIFY_API_URL}/workspaces`);
+                msg.request_headers.append('X-Api-Key', apiKey);
+                const bytes  = await session.send_and_read_async(
+                    msg, GLib.PRIORITY_DEFAULT, null);
+                const status = msg.get_status();
+                if (status >= 200 && status < 300) {
+                    const list = JSON.parse(new TextDecoder().decode(bytes.get_data()));
+                    populateWorkspaces(list.map(w => ({ id: w.id, name: w.name })));
+                } else {
+                    workspaceRow.subtitle  = _('Invalid API key or network error');
+                    workspaceRow.sensitive = false;
+                }
+            } catch {
+                workspaceRow.subtitle  = _('Network error — check your connection');
+                workspaceRow.sensitive = false;
+            } finally {
+                spinner.stop();
+            }
+        };
+
+        // Fetch on open (if API key already set) and on every API key change
+        fetchWorkspaces();
+        settings.connect('changed::api-key', fetchWorkspaces);
 
         // ── Panel Appearance ──────────────────────────────────────────────────
         const appearGroup = new Adw.PreferencesGroup({ title: _('Panel Appearance') });
@@ -88,13 +179,12 @@ export default class ClockifyPrefs extends ExtensionPreferences {
         ].forEach(s => appearanceModel.append(s));
 
         const comboRow = new Adw.ComboRow({
-            title: _('Panel style'),
-            model: appearanceModel,
+            title:    _('Panel style'),
+            model:    appearanceModel,
             selected: settings.get_int('panel-appearance'),
         });
         comboRow.connect('notify::selected', () =>
             settings.set_int('panel-appearance', comboRow.get_selected()));
-        // Reflect external changes
         settings.connect('changed::panel-appearance', () =>
             comboRow.set_selected(settings.get_int('panel-appearance')));
         appearGroup.add(comboRow);
