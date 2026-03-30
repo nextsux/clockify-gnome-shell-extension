@@ -41,10 +41,6 @@ function elapsedSeconds(isoStart) {
     return Math.floor((Date.now() - new Date(isoStart).getTime()) / 1000);
 }
 
-function todayStartISO() {
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString();
-}
 
 // ─── ActivityEntry ────────────────────────────────────────────────────────────
 //
@@ -71,6 +67,11 @@ class ActivityEntry extends St.Entry {
         this._getProjects   = getProjects;
         this._prevText      = '';
         this.clutter_text.connect('key-release-event', this._onKeyRelease.bind(this));
+    }
+
+    reset() {
+        this.set_text('');
+        this._prevText = '';
     }
 
     _complete(text, completed) {
@@ -197,7 +198,7 @@ class TodaysEntriesWidget extends St.ScrollView {
                     icon_name: 'media-playback-start-symbolic',
                     icon_size: 16,
                 });
-                const btn = new St.Button({ style_class: 'clickable cell-button' });
+                const btn = new St.Button({ style_class: 'cell-button' });
                 btn.set_child(icon);
                 btn.connect('clicked', () => this._onContinue(entry));
                 layout.attach(btn, 3, row, 1, 1);
@@ -223,7 +224,7 @@ class ClockifyIndicator extends PanelMenu.Button {
         this._refreshTimeout = null;
 
         // Invalidate all cached state when the API key changes, then reload
-        this._settings.connect('changed::api-key', () => {
+        this._settingsApiKeyId = this._settings.connect('changed::api-key', () => {
             this._userId       = null;
             this._currentEntry = null;
             this._activities   = [];
@@ -266,7 +267,7 @@ class ClockifyIndicator extends PanelMenu.Button {
         });
 
         // Reload projects and clear userId cache when workspace changes
-        this._settings.connect('changed::workspace-id', () => {
+        this._settingsWsId = this._settings.connect('changed::workspace-id', () => {
             this._userId   = null;
             this._projects = [];
             this._loadProjects();
@@ -354,10 +355,11 @@ class ClockifyIndicator extends PanelMenu.Button {
 
     // ── Menu open ─────────────────────────────────────────────────────────────
 
-    _onMenuOpen() {
+    async _onMenuOpen() {
         // Re-fetch running entry first so _currentEntry is current before
         // populating the list (catches changes made via the web app).
-        this._loadCurrentEntry().then(() => this._loadTodaysEntries());
+        await this._loadCurrentEntry();
+        this._loadTodaysEntries();
         // Focus the entry after the menu finishes its opening animation
         GLib.timeout_add(GLib.PRIORITY_DEFAULT, 20, () => {
             global.stage.set_key_focus(this._activityEntry);
@@ -384,8 +386,7 @@ class ClockifyIndicator extends PanelMenu.Button {
 
         const ok = await this._startTimer(description, projectId);
         if (ok) {
-            this._activityEntry.set_text('');
-            this._activityEntry._prevText = '';
+            this._activityEntry.reset();
             this.menu.close();
         }
     }
@@ -458,21 +459,23 @@ class ClockifyIndicator extends PanelMenu.Button {
         const wid    = this._settings.get_string('workspace-id');
         if (!apiKey || !wid) return;
         try {
-            const uid   = await this._ensureUserId();
+            const uid = await this._ensureUserId();
 
-            // Fetch today's entries for the activity list display
-            const todayStart = encodeURIComponent(todayStartISO());
-            const entries = await this._apiRequest('GET',
-                `/workspaces/${wid}/user/${uid}/time-entries?start=${todayStart}&page-size=50`);
+            // One request covers both the display list (today) and autocomplete (7 days).
+            // Clockify returns newest-first so today's entries are always in the first page
+            // for any typical user.  setDate() handles month/year boundaries correctly.
+            const weekAgo = new Date();
+            weekAgo.setDate(weekAgo.getDate() - 7);
+            const allEntries = await this._apiRequest('GET',
+                `/workspaces/${wid}/user/${uid}/time-entries` +
+                `?start=${encodeURIComponent(weekAgo.toISOString())}&page-size=200`) || [];
 
-            // Fetch last 7 days separately for a richer autocomplete set
-            const d = new Date();
-            const weekStart = encodeURIComponent(
-                new Date(d.getFullYear(), d.getMonth(), d.getDate() - 7).toISOString());
-            const recentEntries = await this._apiRequest('GET',
-                `/workspaces/${wid}/user/${uid}/time-entries?start=${weekStart}&page-size=100`);
+            const todayMidnight = new Date();
+            todayMidnight.setHours(0, 0, 0, 0);
+            const todayEntries = allEntries.filter(
+                e => new Date(e.timeInterval.start) >= todayMidnight);
 
-            this._todaysWidget.refresh(entries || [], this._currentEntry, this._projects);
+            this._todaysWidget.refresh(todayEntries, this._currentEntry, this._projects);
             // Scroll to bottom after Clutter lays out the new rows (newest entry visible)
             GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
                 const adj = this._todaysWidget.vadjustment;
@@ -480,11 +483,10 @@ class ClockifyIndicator extends PanelMenu.Button {
                 return GLib.SOURCE_REMOVE;
             });
 
-            // Build autocomplete list from last 7 days: "description @project" strings,
-            // unique, most-recent first.  7-day window gives richer suggestions than today only.
+            // Autocomplete: unique "description @project" strings, most-recent first
             const seen = new Set();
             this._activities = [];
-            for (const e of (recentEntries || [])) {
+            for (const e of allEntries) {
                 if (!e.description) continue;
                 const projectName = this._projects.find(p => p.id === e.projectId)?.name;
                 const key = projectName ? `${e.description} @${projectName}` : e.description;
@@ -494,9 +496,9 @@ class ClockifyIndicator extends PanelMenu.Button {
                 }
             }
 
-            // Total time label
+            // Total tracked time for today
             let totalSecs = 0;
-            for (const e of (entries || [])) {
+            for (const e of todayEntries) {
                 if (e.timeInterval.end) {
                     totalSecs += Math.floor(
                         (new Date(e.timeInterval.end) - new Date(e.timeInterval.start)) / 1000);
@@ -504,7 +506,8 @@ class ClockifyIndicator extends PanelMenu.Button {
             }
             if (this._currentEntry)
                 totalSecs += elapsedSeconds(this._currentEntry.timeInterval.start);
-            this._totalLabel.set_text(totalSecs > 0 ? _('Total: %s').replace('%s', formatDuration(totalSecs)) : '');
+            this._totalLabel.set_text(
+                totalSecs > 0 ? _('Total: %s').replace('%s', formatDuration(totalSecs)) : '');
         } catch (e) {
             this._showError(_('Failed to load entries: %s').replace('%s', e.message));
         }
@@ -593,6 +596,14 @@ class ClockifyIndicator extends PanelMenu.Button {
     // ── Cleanup ───────────────────────────────────────────────────────────────
 
     destroy() {
+        if (this._settingsApiKeyId) {
+            this._settings.disconnect(this._settingsApiKeyId);
+            this._settingsApiKeyId = null;
+        }
+        if (this._settingsWsId) {
+            this._settings.disconnect(this._settingsWsId);
+            this._settingsWsId = null;
+        }
         if (this._refreshTimeout) {
             GLib.source_remove(this._refreshTimeout);
             this._refreshTimeout = null;
