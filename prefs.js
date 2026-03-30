@@ -43,6 +43,7 @@ class HotkeyRow extends Adw.EntryRow {
                 this._current = shortcuts;
                 this._settings.set_strv(this._key, this._current);
             } else {
+                // Restore previous valid value
                 this.set_text(this._current.join(', '));
             }
         });
@@ -67,9 +68,13 @@ class HotkeyRow extends Adw.EntryRow {
 
 export default class ClockifyPrefs extends ExtensionPreferences {
     fillPreferencesWindow(window) {
-        const settings = this.getSettings();
-        const session  = new Soup.Session();
-        const page     = new Adw.PreferencesPage();
+        const settings     = this.getSettings();
+        const session      = new Soup.Session();
+        const cancellable  = new Gio.Cancellable();
+        const page         = new Adw.PreferencesPage();
+
+        // Track signal handler IDs so we can disconnect them when the window closes.
+        const handlerIds = [];
 
         // ── Clockify Credentials ──────────────────────────────────────────────
         const credGroup = new Adw.PreferencesGroup({ title: _('Clockify Credentials') });
@@ -92,45 +97,38 @@ export default class ClockifyPrefs extends ExtensionPreferences {
 
         const workspaceModel = new Gtk.StringList();
         const workspaceRow   = new Adw.ComboRow({
-            title:      _('Workspace'),
-            subtitle:   _('Enter an API key first'),
-            model:      workspaceModel,
-            sensitive:  false,
+            title:     _('Workspace'),
+            subtitle:  _('Enter an API key first'),
+            model:     workspaceModel,
+            sensitive: false,
         });
         credGroup.add(workspaceRow);
 
-        // Spinner suffix shown while loading
         const spinner = new Gtk.Spinner();
         workspaceRow.add_suffix(spinner);
 
-        // In-memory list of workspaces matching the model positions
-        let workspaces = [];
+        let workspaces            = [];
         let blockSelectionHandler = false;
 
-        // Populate combo from a fetched array [{id, name}]
         const populateWorkspaces = ws => {
             workspaces = ws;
-
             blockSelectionHandler = true;
 
-            // Repopulate model
             while (workspaceModel.get_n_items() > 0)
                 workspaceModel.remove(0);
             ws.forEach(w => workspaceModel.append(w.name));
 
-            // Select the currently-saved workspace (or first if none matches)
             const currentId = settings.get_string('workspace-id');
             const idx = ws.findIndex(w => w.id === currentId);
             workspaceRow.set_selected(idx >= 0 ? idx : 0);
 
-            // If nothing was saved yet, persist the first workspace automatically
+            // Auto-save first workspace if none was configured yet
             if (idx < 0 && ws.length > 0)
                 settings.set_string('workspace-id', ws[0].id);
 
-            blockSelectionHandler = false;
-
-            workspaceRow.subtitle   = '';
-            workspaceRow.sensitive  = true;
+            blockSelectionHandler  = false;
+            workspaceRow.subtitle  = '';
+            workspaceRow.sensitive = true;
         };
 
         workspaceRow.connect('notify::selected', () => {
@@ -139,8 +137,9 @@ export default class ClockifyPrefs extends ExtensionPreferences {
             if (ws) settings.set_string('workspace-id', ws.id);
         });
 
-        // Fetch workspaces from the API
         const fetchWorkspaces = async () => {
+            if (cancellable.is_cancelled()) return;
+
             const apiKey = settings.get_string('api-key');
             if (!apiKey) {
                 workspaceRow.subtitle  = _('Enter an API key first');
@@ -156,26 +155,47 @@ export default class ClockifyPrefs extends ExtensionPreferences {
                 const msg = Soup.Message.new('GET', `${CLOCKIFY_API_URL}/workspaces`);
                 msg.request_headers.append('X-Api-Key', apiKey);
                 const bytes  = await session.send_and_read_async(
-                    msg, GLib.PRIORITY_DEFAULT, null);
+                    msg, GLib.PRIORITY_DEFAULT, cancellable);
                 const status = msg.get_status();
                 if (status >= 200 && status < 300) {
-                    const list = JSON.parse(new TextDecoder().decode(bytes.get_data()));
-                    populateWorkspaces(list.map(w => ({ id: w.id, name: w.name })));
+                    try {
+                        const list = JSON.parse(new TextDecoder().decode(bytes.get_data()));
+                        populateWorkspaces(list.map(w => ({ id: w.id, name: w.name })));
+                    } catch {
+                        workspaceRow.subtitle  = _('Unexpected response from server');
+                        workspaceRow.sensitive = false;
+                    }
                 } else {
-                    workspaceRow.subtitle  = _('Invalid API key or network error');
+                    workspaceRow.subtitle  = _('Invalid API key (HTTP %s)').replace('%s', status);
                     workspaceRow.sensitive = false;
                 }
-            } catch {
-                workspaceRow.subtitle  = _('Network error — check your connection');
+            } catch (e) {
+                if (cancellable.is_cancelled()) return;
+                workspaceRow.subtitle  = _('Network error \u2014 check your connection');
                 workspaceRow.sensitive = false;
             } finally {
-                spinner.stop();
+                if (!cancellable.is_cancelled()) spinner.stop();
             }
         };
 
-        // Fetch on open (if API key already set) and on every API key change
+        // Debounce: wait 500 ms after the last api-key change before fetching,
+        // so a user typing their key doesn't fire one request per character.
+        let debounceId = null;
+        const scheduleFetch = () => {
+            if (debounceId) {
+                GLib.source_remove(debounceId);
+                debounceId = null;
+            }
+            debounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 500, () => {
+                debounceId = null;
+                fetchWorkspaces();
+                return GLib.SOURCE_REMOVE;
+            });
+        };
+
+        // Fetch immediately on open (no debounce needed — user isn't typing yet)
         fetchWorkspaces();
-        settings.connect('changed::api-key', fetchWorkspaces);
+        handlerIds.push(settings.connect('changed::api-key', scheduleFetch));
 
         // ── Panel Appearance ──────────────────────────────────────────────────
         const appearGroup = new Adw.PreferencesGroup({ title: _('Panel Appearance') });
@@ -195,8 +215,8 @@ export default class ClockifyPrefs extends ExtensionPreferences {
         });
         comboRow.connect('notify::selected', () =>
             settings.set_int('panel-appearance', comboRow.get_selected()));
-        settings.connect('changed::panel-appearance', () =>
-            comboRow.set_selected(settings.get_int('panel-appearance')));
+        handlerIds.push(settings.connect('changed::panel-appearance', () =>
+            comboRow.set_selected(settings.get_int('panel-appearance'))));
         appearGroup.add(comboRow);
 
         // ── Keyboard Shortcut ─────────────────────────────────────────────────
@@ -207,6 +227,20 @@ export default class ClockifyPrefs extends ExtensionPreferences {
             settings,
             key:      'show-clockify-dropdown',
         }));
+
+        // ── Cleanup on close ──────────────────────────────────────────────────
+        // Disconnect signal handlers and cancel in-flight HTTP requests when the
+        // window is destroyed, so nothing touches freed widgets afterwards.
+        window.connect('destroy', () => {
+            cancellable.cancel();
+            for (const id of handlerIds)
+                settings.disconnect(id);
+            handlerIds.length = 0;
+            if (debounceId) {
+                GLib.source_remove(debounceId);
+                debounceId = null;
+            }
+        });
 
         window.add(page);
     }

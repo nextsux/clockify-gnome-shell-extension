@@ -6,6 +6,7 @@
 
 import GObject from 'gi://GObject';
 import GLib from 'gi://GLib';
+import Gio from 'gi://Gio';
 import St from 'gi://St';
 import Soup from 'gi://Soup';
 import Clutter from 'gi://Clutter';
@@ -49,6 +50,11 @@ function parseDuration(iso) {
     return (parseInt(m[1] || 0) * 3600) +
            (parseInt(m[2] || 0) * 60) +
            parseInt(m[3] || 0);
+}
+
+// Returns true when an error is a Gio cancellation (extension being disabled).
+function isCancelled(e) {
+    return e?.code === Gio.IOErrorEnum.CANCELLED;
 }
 
 
@@ -110,8 +116,8 @@ class ActivityEntry extends St.Entry {
 
         if (atIdx !== -1) {
             // Zone 2 — after @: complete project names
-            const prefix  = text.slice(0, atIdx + 1);   // everything up to and including @
-            const partial  = text.slice(atIdx + 1).toLowerCase();
+            const prefix  = text.slice(0, atIdx + 1);
+            const partial = text.slice(atIdx + 1).toLowerCase();
             for (const p of this._getProjects()) {
                 if (p.name.toLowerCase().startsWith(partial)) {
                     this._complete(text, prefix + p.name);
@@ -173,7 +179,7 @@ class TodaysEntriesWidget extends St.ScrollView {
                 const eh  = String(end.getHours()).padStart(2, '0');
                 const em  = String(end.getMinutes()).padStart(2, '0');
                 timeStr = `${sh}:${sm} - ${eh}:${em}`;
-                // Prefer the server-supplied duration string over client arithmetic
+                // Prefer the server-supplied duration over client arithmetic
                 // to avoid GJS date-parsing edge cases.
                 secs = parseDuration(entry.timeInterval.duration) ??
                        Math.floor((end - start) / 1000);
@@ -188,11 +194,8 @@ class TodaysEntriesWidget extends St.ScrollView {
                 .filter(Boolean).join(' ');
 
             const timeLabel = new St.Label({ style_class: 'cell-label', text: timeStr });
-            const descLabel = new St.Label({
-                style_class: 'cell-label',
-                text: descText,
-            });
-            const durLabel = new St.Label({
+            const descLabel = new St.Label({ style_class: 'cell-label', text: descText });
+            const durLabel  = new St.Label({
                 style_class: 'cell-label',
                 text: formatDurationHuman(secs),
             });
@@ -227,14 +230,18 @@ class ClockifyIndicator extends PanelMenu.Button {
     _init(settings, openPrefs) {
         super._init(0.0, 'Clockify Time Tracker');
 
-        this._settings     = settings;
-        this._openPrefs    = openPrefs;
-        this._session      = new Soup.Session();
-        this._currentEntry = null;    // in-progress Clockify time entry
-        this._userId       = null;    // cached user id (reset on api-key change)
-        this._activities   = [];      // "description @project" strings for autocomplete
-        this._projects     = [];      // all workspace projects [{id, name}]
+        this._settings      = settings;
+        this._openPrefs     = openPrefs;
+        this._session       = new Soup.Session();
+        this._cancellable   = new Gio.Cancellable();
+        this._currentEntry  = null;   // in-progress Clockify time entry
+        this._userId        = null;   // cached user id (reset on api-key change)
+        this._activities    = [];     // "description @project" strings for autocomplete
+        this._projects      = [];     // all workspace projects [{id, name}]
+        this._submitting    = false;  // reentrancy guard for timer start/continue
         this._refreshTimeout = null;
+        this._scrollTimeout  = null;
+        this._focusTimeout   = null;
 
         // Invalidate all cached state when the API key changes, then reload
         this._settingsApiKeyId = this._settings.connect('changed::api-key', () => {
@@ -262,7 +269,7 @@ class ClockifyIndicator extends PanelMenu.Button {
         this.add_child(box);
 
         this._buildMenu();
-        this._refreshPanelLabel();   // set correct icon/label before first API response
+        this._refreshPanelLabel();
 
         // Focus entry and refresh when menu opens
         this.menu.connect('open-state-changed', (_menu, open) => {
@@ -293,7 +300,6 @@ class ClockifyIndicator extends PanelMenu.Button {
     // ── Menu construction ─────────────────────────────────────────────────────
 
     _buildMenu() {
-        // FactsBox: "What are you working on?" entry + today's list
         const factBoxItem = new PopupMenu.PopupBaseMenuItem({ reactive: false });
         const mainBox = new St.BoxLayout({ vertical: true, style_class: 'hamster-box' });
         factBoxItem.add_child(mainBox);
@@ -337,14 +343,12 @@ class ClockifyIndicator extends PanelMenu.Button {
         this.menu.addMenuItem(factBoxItem);
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        // Stop Tracking
         this._stopItem = new PopupMenu.PopupMenuItem(_('Stop Tracking'));
         this._stopItem.connect('activate', () => this._stopTimer());
         this.menu.addMenuItem(this._stopItem);
 
         this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
-        // Settings
         const settingsItem = new PopupMenu.PopupMenuItem(_('Extension Settings'));
         settingsItem.connect('activate', () => this._openPrefs());
         this.menu.addMenuItem(settingsItem);
@@ -369,12 +373,15 @@ class ClockifyIndicator extends PanelMenu.Button {
     // ── Menu open ─────────────────────────────────────────────────────────────
 
     async _onMenuOpen() {
-        // Re-fetch running entry first so _currentEntry is current before
-        // populating the list (catches changes made via the web app).
         await this._loadCurrentEntry();
         this._loadTodaysEntries();
         // Focus the entry after the menu finishes its opening animation
-        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 20, () => {
+        if (this._focusTimeout) {
+            GLib.source_remove(this._focusTimeout);
+            this._focusTimeout = null;
+        }
+        this._focusTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 20, () => {
+            this._focusTimeout = null;
             global.stage.set_key_focus(this._activityEntry);
             return GLib.SOURCE_REMOVE;
         });
@@ -383,44 +390,57 @@ class ClockifyIndicator extends PanelMenu.Button {
     // ── Entry activation (press Enter) ────────────────────────────────────────
 
     async _onEntryActivated() {
-        const raw = this._activityEntry.get_text().trim();
-        if (!raw) return;
+        if (this._submitting) return;
+        this._submitting = true;
+        try {
+            const raw = this._activityEntry.get_text().trim();
+            if (!raw) return;
 
-        const atIdx = raw.lastIndexOf('@');
-        let description, projectId = null;
-        if (atIdx !== -1) {
-            description = raw.slice(0, atIdx).trim();
-            const projectName = raw.slice(atIdx + 1).trim();
-            if (projectName) {
-                const existing = this._projects.find(
-                    p => p.name.toLowerCase() === projectName.toLowerCase());
-                if (existing) {
-                    projectId = existing.id;
-                } else {
-                    try {
-                        projectId = await this._createProject(projectName);
-                    } catch (e) {
-                        this._showError(_('Failed to create project: %s').replace('%s', e.message));
-                        return;
+            const atIdx = raw.lastIndexOf('@');
+            let description, projectId = null;
+            if (atIdx !== -1) {
+                description = raw.slice(0, atIdx).trim();
+                const projectName = raw.slice(atIdx + 1).trim();
+                if (projectName) {
+                    const existing = this._projects.find(
+                        p => p.name.toLowerCase() === projectName.toLowerCase());
+                    if (existing) {
+                        projectId = existing.id;
+                    } else {
+                        try {
+                            projectId = await this._createProject(projectName);
+                        } catch (e) {
+                            if (!isCancelled(e))
+                                this._showError(_('Failed to create project: %s').replace('%s', e.message));
+                            return;
+                        }
                     }
                 }
+            } else {
+                description = raw;
             }
-        } else {
-            description = raw;
-        }
 
-        const ok = await this._startTimer(description, projectId);
-        if (ok) {
-            this._activityEntry.reset();
-            this.menu.close();
+            const ok = await this._startTimer(description, projectId);
+            if (ok) {
+                this._activityEntry.reset();
+                this.menu.close();
+            }
+        } finally {
+            this._submitting = false;
         }
     }
 
     // ── Continue a past entry ─────────────────────────────────────────────────
 
     async _continueEntry(entry) {
-        const ok = await this._startTimer(entry.description || '', entry.projectId || null);
-        if (ok) this.menu.close();
+        if (this._submitting) return;
+        this._submitting = true;
+        try {
+            const ok = await this._startTimer(entry.description || '', entry.projectId || null);
+            if (ok) this.menu.close();
+        } finally {
+            this._submitting = false;
+        }
     }
 
     // ── Clockify API helpers ──────────────────────────────────────────────────
@@ -438,12 +458,16 @@ class ClockifyIndicator extends PanelMenu.Button {
         }
 
         const bytes = await this._session.send_and_read_async(
-            msg, GLib.PRIORITY_DEFAULT, null);
+            msg, GLib.PRIORITY_DEFAULT, this._cancellable);
         const status = msg.get_status();
         if (status < 200 || status >= 300)
             throw new Error(`HTTP ${status} \u2014 ${method} ${path}`);
 
-        return JSON.parse(new TextDecoder().decode(bytes.get_data()));
+        try {
+            return JSON.parse(new TextDecoder().decode(bytes.get_data()));
+        } catch {
+            throw new Error(`Invalid JSON response from ${method} ${path}`);
+        }
     }
 
     async _ensureUserId() {
@@ -456,14 +480,17 @@ class ClockifyIndicator extends PanelMenu.Button {
     // ── Data loading ──────────────────────────────────────────────────────────
 
     // Fetch all workspace projects once on startup / workspace change.
-    // Projects are stable — no periodic refresh needed.
+    // Normalised to {id, name} to match the shape pushed by _createProject.
     async _loadProjects() {
         const wid = this._settings.get_string('workspace-id');
         if (!wid || !this._settings.get_string('api-key')) return;
         try {
-            this._projects = await this._apiRequest('GET',
+            const raw = await this._apiRequest('GET',
                 `/workspaces/${wid}/projects?page-size=500&archived=false`) || [];
-        } catch { this._projects = []; }
+            this._projects = raw.map(p => ({ id: p.id, name: p.name }));
+        } catch (e) {
+            if (!isCancelled(e)) this._projects = [];
+        }
     }
 
     async _loadCurrentEntry() {
@@ -476,7 +503,7 @@ class ClockifyIndicator extends PanelMenu.Button {
                 `/workspaces/${wid}/user/${uid}/time-entries?in-progress=true`);
             this._currentEntry = (entries && entries.length > 0) ? entries[0] : null;
             this._refreshPanelLabel();
-        } catch { /* silent on startup */ }
+        } catch { /* silent — cancellation and network errors both ignored here */ }
     }
 
     async _loadTodaysEntries() {
@@ -486,9 +513,6 @@ class ClockifyIndicator extends PanelMenu.Button {
         try {
             const uid = await this._ensureUserId();
 
-            // One request covers both the display list (today) and autocomplete (7 days).
-            // Clockify returns newest-first so today's entries are always in the first page
-            // for any typical user.  setDate() handles month/year boundaries correctly.
             const weekAgo = new Date();
             weekAgo.setDate(weekAgo.getDate() - 7);
             const allEntries = await this._apiRequest('GET',
@@ -501,8 +525,14 @@ class ClockifyIndicator extends PanelMenu.Button {
                 e => new Date(e.timeInterval.start) >= todayMidnight);
 
             this._todaysWidget.refresh(todayEntries, this._currentEntry, this._projects);
-            // Scroll to bottom after Clutter lays out the new rows (newest entry visible)
-            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
+
+            // Scroll to bottom after Clutter lays out the new rows
+            if (this._scrollTimeout) {
+                GLib.source_remove(this._scrollTimeout);
+                this._scrollTimeout = null;
+            }
+            this._scrollTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 0, () => {
+                this._scrollTimeout = null;
                 const adj = this._todaysWidget.vadjustment;
                 if (adj) adj.value = adj.upper;
                 return GLib.SOURCE_REMOVE;
@@ -535,14 +565,14 @@ class ClockifyIndicator extends PanelMenu.Button {
             this._totalLabel.set_text(
                 totalSecs > 0 ? _('Total: %s').replace('%s', formatDuration(totalSecs)) : '');
         } catch (e) {
-            this._showError(_('Failed to load entries: %s').replace('%s', e.message));
+            if (!isCancelled(e))
+                this._showError(_('Failed to load entries: %s').replace('%s', e.message));
         }
     }
 
     // ── Timer control ─────────────────────────────────────────────────────────
 
     // Create a new project in the workspace and cache it.
-    // Returns the new project id on success, or throws on failure.
     async _createProject(name) {
         const wid = this._settings.get_string('workspace-id');
         if (!wid) throw new Error(_('Workspace not configured'));
@@ -573,7 +603,8 @@ class ClockifyIndicator extends PanelMenu.Button {
             this._loadTodaysEntries();
             return true;
         } catch (e) {
-            this._showError(_('Failed to start timer: %s').replace('%s', e.message));
+            if (!isCancelled(e))
+                this._showError(_('Failed to start timer: %s').replace('%s', e.message));
             return false;
         }
     }
@@ -601,14 +632,14 @@ class ClockifyIndicator extends PanelMenu.Button {
             this._refreshPanelLabel();
             this._loadTodaysEntries();
         } catch (e) {
-            Main.notify(_('Clockify Error'), _('Failed to stop timer: %s').replace('%s', e.message));
+            if (!isCancelled(e))
+                Main.notify(_('Clockify Error'), _('Failed to stop timer: %s').replace('%s', e.message));
         }
     }
 
     // ── Panel label update ────────────────────────────────────────────────────
 
     _refreshPanelLabel() {
-        // 0 = label only, 1 = icon only, 2 = icon + label
         const appearance = this._settings.get_int('panel-appearance');
 
         this._stopItem.visible = !!this._currentEntry;
@@ -624,14 +655,21 @@ class ClockifyIndicator extends PanelMenu.Button {
         }
 
         this._panelIcon.icon_name  = iconName;
-        this._panelIcon.visible    = appearance !== 0;   // shown in icon-only (1) and icon+label (2)
-        this._panelLabel.visible   = appearance !== 1;   // shown in label-only (0) and icon+label (2)
+        this._panelIcon.visible    = appearance !== 0;
+        this._panelLabel.visible   = appearance !== 1;
         if (appearance !== 1) this._panelLabel.set_text(text);
     }
 
     // ── Cleanup ───────────────────────────────────────────────────────────────
 
     destroy() {
+        // Cancel all in-flight Soup requests first to prevent use-after-destroy
+        // in async continuations that touch UI or settings.
+        if (this._cancellable) {
+            this._cancellable.cancel();
+            this._cancellable = null;
+        }
+
         if (this._settingsApiKeyId) {
             this._settings.disconnect(this._settingsApiKeyId);
             this._settingsApiKeyId = null;
@@ -640,13 +678,11 @@ class ClockifyIndicator extends PanelMenu.Button {
             this._settings.disconnect(this._settingsWsId);
             this._settingsWsId = null;
         }
-        if (this._refreshTimeout) {
-            GLib.source_remove(this._refreshTimeout);
-            this._refreshTimeout = null;
-        }
-        if (this._errorTimeout) {
-            GLib.source_remove(this._errorTimeout);
-            this._errorTimeout = null;
+        for (const prop of ['_refreshTimeout', '_errorTimeout', '_scrollTimeout', '_focusTimeout']) {
+            if (this[prop]) {
+                GLib.source_remove(this[prop]);
+                this[prop] = null;
+            }
         }
         super.destroy();
     }
@@ -662,7 +698,6 @@ export default class ClockifyExtension extends Extension {
         this._indicator = new ClockifyIndicator(this._settings, () => this.openPreferences());
         Main.panel.addToStatusArea('clockify-indicator', this._indicator);
 
-        // Global keybinding — default <Super>t, configurable in prefs
         Main.wm.addKeybinding(
             'show-clockify-dropdown',
             this._settings,
