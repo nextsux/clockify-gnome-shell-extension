@@ -386,12 +386,6 @@ class ClockifyIndicator extends PanelMenu.Button {
                 } else {
                     try {
                         projectId = await this._createProject(projectName);
-                        if (projectId === null) {
-                            // No permission to create — start without project, warn user
-                            this._showError(
-                                _('Project "%s" not found. Workspace Admin role is required to create projects — starting without project.')
-                                    .replace('%s', projectName));
-                        }
                     } catch (e) {
                         this._showError(_('Failed to create project: %s').replace('%s', e.message));
                         return;
@@ -534,20 +528,14 @@ class ClockifyIndicator extends PanelMenu.Button {
     // ── Timer control ─────────────────────────────────────────────────────────
 
     // Create a new project in the workspace and cache it.
-    // Returns the new project id on success, or null if the user lacks permission
-    // (401/403 — Clockify requires Workspace Admin or Manager role to create projects).
-    // Any other error is re-thrown so the caller can decide how to handle it.
+    // Returns the new project id on success, or throws on failure.
     async _createProject(name) {
         const wid = this._settings.get_string('workspace-id');
-        try {
-            const project = await this._apiRequest('POST',
-                `/workspaces/${wid}/projects`, { name });
-            this._projects.push({ id: project.id, name: project.name });
-            return project.id;
-        } catch (e) {
-            if (/HTTP 40[13]/.test(e.message)) return null;   // permission denied — caller falls back
-            throw e;
-        }
+        if (!wid) throw new Error(_('Workspace not configured'));
+        const project = await this._apiRequest('POST',
+            `/workspaces/${wid}/projects`, { name, isPublic: false });
+        this._projects.push({ id: project.id, name: project.name });
+        return project.id;
     }
 
     // Returns true on success, false on failure (caller gates menu close / text clear).
