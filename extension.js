@@ -378,8 +378,16 @@ class ClockifyIndicator extends PanelMenu.Button {
         if (atIdx !== -1) {
             description = raw.slice(0, atIdx).trim();
             const projectName = raw.slice(atIdx + 1).trim();
-            projectId = this._projects.find(
-                p => p.name.toLowerCase() === projectName.toLowerCase())?.id || null;
+            if (projectName) {
+                const existing = this._projects.find(
+                    p => p.name.toLowerCase() === projectName.toLowerCase());
+                if (existing) {
+                    projectId = existing.id;
+                } else {
+                    projectId = await this._createProject(projectName);
+                    if (projectId === null) return; // error already shown
+                }
+            }
         } else {
             description = raw;
         }
@@ -514,6 +522,21 @@ class ClockifyIndicator extends PanelMenu.Button {
     }
 
     // ── Timer control ─────────────────────────────────────────────────────────
+
+    // Create a new project in the workspace and cache it.
+    // Returns the new project id, or null on failure (error shown inline).
+    async _createProject(name) {
+        const wid = this._settings.get_string('workspace-id');
+        try {
+            const project = await this._apiRequest('POST',
+                `/workspaces/${wid}/projects`, { name });
+            this._projects.push({ id: project.id, name: project.name });
+            return project.id;
+        } catch (e) {
+            this._showError(_('Failed to create project: %s').replace('%s', e.message));
+            return null;
+        }
+    }
 
     // Returns true on success, false on failure (caller gates menu close / text clear).
     async _startTimer(description, projectId) {
