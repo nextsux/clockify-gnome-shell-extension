@@ -574,8 +574,7 @@ class ClockifyIndicator extends PanelMenu.Button {
         // 0 = label only, 1 = icon only, 2 = icon + label
         const appearance = this._settings.get_int('panel-appearance');
 
-        this._stopItem.reactive  = !!this._currentEntry;
-        this._stopItem.sensitive = !!this._currentEntry;
+        this._stopItem.visible = !!this._currentEntry;
 
         let text, iconName;
         if (this._currentEntry) {

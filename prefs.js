@@ -75,9 +75,16 @@ export default class ClockifyPrefs extends ExtensionPreferences {
         const credGroup = new Adw.PreferencesGroup({ title: _('Clockify Credentials') });
         page.add(credGroup);
 
-        // API key — bound directly so it saves on every keystroke
+        // API key — explicit load + manual save to avoid the bidirectional bind race
+        // where the widget's initial empty notify::text fires before GSettings pushes
+        // its stored value, silently overwriting the saved key with an empty string.
         const apiKeyRow = new Adw.PasswordEntryRow({ title: _('API Key') });
-        settings.bind('api-key', apiKeyRow, 'text', Gio.SettingsBindFlags.DEFAULT);
+        apiKeyRow.set_text(settings.get_string('api-key'));
+        apiKeyRow.connect('notify::text', () => {
+            const v = apiKeyRow.get_text();
+            if (v !== settings.get_string('api-key'))
+                settings.set_string('api-key', v);
+        });
         credGroup.add(apiKeyRow);
 
         // ── Workspace ─────────────────────────────────────────────────────────
