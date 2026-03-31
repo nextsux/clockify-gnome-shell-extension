@@ -102,7 +102,7 @@ npx eslint extension.js prefs.js
 
 ## CI/CD
 
-Both GitHub Actions (`.github/workflows/ci.yml`) and GitLab CI (`.gitlab-ci.yml`) run on every push:
+GitHub Actions (`.github/workflows/ci.yml`) runs on every push:
 
 | Stage | Job | What it does |
 |---|---|---|
@@ -113,8 +113,7 @@ Both GitHub Actions (`.github/workflows/ci.yml`) and GitLab CI (`.gitlab-ci.yml`
 To publish a release:
 ```bash
 git tag v3
-git push origin v3        # GitLab: then trigger publish:ego manually
-git push upstream v3      # GitHub: publish job runs automatically on tag push
+git push origin v3
 ```
 
-Requires `EGO_USERNAME` and `EGO_PASSWORD` secrets/variables set in both GitLab CI and GitHub Actions (environment: `extensions.gnome.org`).
+The publish job runs automatically on `vN` tag pushes. Requires `EGO_USERNAME` and `EGO_PASSWORD` secrets set in GitHub (Settings → Secrets → Actions, environment: `extensions.gnome.org`).

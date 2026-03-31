@@ -98,8 +98,8 @@ All extension logic lives in three files:
 
 ## CI/CD
 
-`.gitlab-ci.yml` defines three stages:
+`.github/workflows/ci.yml` defines three jobs:
 
 1. **lint** — ESLint 9 (flat config in `eslint.config.js`) on `extension.js` and `prefs.js`
-2. **build** — `make dist` → artifact `dist/clockify-tracker@smoula.net.zip`
-3. **publish** — manual job on `v\d+` tags, uploads to extensions.gnome.org via `ego-upload`. Requires `EGO_USERNAME` / `EGO_PASSWORD` CI variables.
+2. **build** — `make dist` → artifact `dist/clockify-tracker@smoula.net.zip` (kept forever)
+3. **publish** — runs automatically on `v\d+` tags, uploads to extensions.gnome.org via `gnome-extension-uploader`. Requires `EGO_USERNAME` / `EGO_PASSWORD` secrets in the `extensions.gnome.org` GitHub environment.
