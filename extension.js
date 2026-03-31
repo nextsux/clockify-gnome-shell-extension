@@ -240,6 +240,7 @@ class ClockifyIndicator extends PanelMenu.Button {
         this._projects      = [];     // all workspace projects [{id, name}]
         this._submitting    = false;  // reentrancy guard for timer start/continue
         this._refreshTimeout = null;
+        this._errorTimeout   = null;
         this._scrollTimeout  = null;
         this._focusTimeout   = null;
 
