@@ -4,7 +4,7 @@ DIST_DIR  = dist
 ZIP_NAME  = $(UUID).zip
 
 # Files that go into the packaged extension
-SOURCES = extension.js prefs.js stylesheet.css metadata.json
+SOURCES = extension.js prefs.js stylesheet.css metadata.json icon.svg
 SCHEMA_SRC = schemas/org.gnome.shell.extensions.clockify-tracker.gschema.xml
 
 .PHONY: all compile mo pot install install-user run reload logs clean dist zip
