@@ -36,7 +36,7 @@ jobs:
         with:
           name: ${{ env.UUID }}-${{ github.sha }}
           path: dist/${{ env.UUID }}.zip
-          retention-days: 30
+          retention-days: 90
 
   # ── Publish ───────────────────────────────────────────────────────────────────
   # Upload to extensions.gnome.org (manual trigger on version tags).

@@ -37,7 +37,7 @@ build:package:
     name: "$UUID-$CI_COMMIT_SHORT_SHA"
     paths:
       - dist/$UUID.zip
-    expire_in: 30 days
+    expire_in: never
   # Build on every push to any branch / tag
   rules:
     - when: always
