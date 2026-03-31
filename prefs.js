@@ -169,7 +169,7 @@ export default class ClockifyPrefs extends ExtensionPreferences {
                     workspaceRow.subtitle  = _('Invalid API key (HTTP %s)').replace('%s', status);
                     workspaceRow.sensitive = false;
                 }
-            } catch (e) {
+            } catch {
                 if (cancellable.is_cancelled()) return;
                 workspaceRow.subtitle  = _('Network error \u2014 check your connection');
                 workspaceRow.sensitive = false;
