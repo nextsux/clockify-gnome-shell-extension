@@ -18,13 +18,13 @@ A GNOME Shell panel extension for [Clockify](https://clockify.me) that deliberat
 
 ## Requirements
 
-- GNOME Shell 45–49
+- GNOME Shell 45–50
 - A [Clockify](https://clockify.me) account (free tier works)
 
 ## Installation
 
 ```bash
-git clone https://gitlab.smoula.net/nexus/clockify-gnome-shell-extension.git
+git clone https://github.com/nextsux/clockify-gnome-shell-extension.git
 cd clockify-gnome-shell-extension
 make install-user
 gnome-extensions enable clockify-tracker@smoula.net
@@ -102,17 +102,19 @@ npx eslint extension.js prefs.js
 
 ## CI/CD
 
-The GitLab pipeline (`.gitlab-ci.yml`) runs on every push:
+Both GitHub Actions (`.github/workflows/ci.yml`) and GitLab CI (`.gitlab-ci.yml`) run on every push:
 
 | Stage | Job | What it does |
 |---|---|---|
-| lint | `lint:eslint` | ESLint on `extension.js` and `prefs.js` |
-| build | `build:package` | `make dist` → zip artifact |
-| publish | `publish:ego` | Upload to extensions.gnome.org *(manual, on `vN` tags)* |
+| lint | ESLint | ESLint on `extension.js` and `prefs.js` |
+| build | Build package | `make dist` → zip artifact (kept forever) |
+| publish | Publish to e.g.o | Upload to extensions.gnome.org *(on `vN` tags)* |
 
 To publish a release:
 ```bash
-git tag v2
-git push origin v2
+git tag v3
+git push origin v3        # GitLab: then trigger publish:ego manually
+git push upstream v3      # GitHub: publish job runs automatically on tag push
 ```
-Then trigger the `publish:ego` job manually in GitLab CI. Requires `EGO_USERNAME` and `EGO_PASSWORD` CI variables.
+
+Requires `EGO_USERNAME` and `EGO_PASSWORD` secrets/variables set in both GitLab CI and GitHub Actions (environment: `extensions.gnome.org`).
