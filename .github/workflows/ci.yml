@@ -58,7 +58,7 @@ jobs:
       - name: Install gnome-extension-uploader
         run: pip install gnome-extension-uploader
       - name: Upload to extensions.gnome.org
-        run: geu publish --username "$EGO_USERNAME" --password "$EGO_PASSWORD" dist/$UUID.zip
+        run: geu publish dist/$UUID.zip
         env:
-          EGO_USERNAME: ${{ secrets.EGO_USERNAME }}
-          EGO_PASSWORD: ${{ secrets.EGO_PASSWORD }}
+          GEU_USERNAME: ${{ secrets.EGO_USERNAME }}
+          GEU_PASSWORD: ${{ secrets.EGO_PASSWORD }}
