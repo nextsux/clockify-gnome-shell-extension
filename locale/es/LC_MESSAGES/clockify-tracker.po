@@ -7,8 +7,8 @@ msgstr ""
 "Language: es\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-msgid "activity @project…"
-msgstr "actividad @proyecto…"
+msgid "HH:MM activity @project…"
+msgstr "HH:MM actividad @proyecto…"
 
 msgid "h "
 msgstr "h "

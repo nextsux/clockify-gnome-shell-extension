@@ -7,8 +7,8 @@ msgstr ""
 "Language: zh_CN\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-msgid "activity @project…"
-msgstr "任务 @项目…"
+msgid "HH:MM activity @project…"
+msgstr "HH:MM 任务 @项目…"
 
 msgid "h "
 msgstr "小时"

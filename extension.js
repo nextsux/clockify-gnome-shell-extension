@@ -42,6 +42,21 @@ function elapsedSeconds(isoStart) {
     return Math.floor((Date.now() - new Date(isoStart).getTime()) / 1000);
 }
 
+// Parse an optional "HH:MM" or "HH:MM:SS" time prefix from user input.
+// Returns { startISO, rest } where startISO is a today-anchored ISO 8601 string
+// (or null if no valid prefix was found) and rest is the remaining text.
+function parseTimePrefix(raw) {
+    const m = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s+([\s\S]+)$/);
+    if (!m) return { startISO: null, rest: raw };
+    const now = new Date();
+    const h = parseInt(m[1]), min = parseInt(m[2]), sec = parseInt(m[3] || 0);
+    if (h > 23 || min > 59 || sec > 59) return { startISO: null, rest: raw };
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, min, sec);
+    // If the parsed time is in the future, assume it belongs to yesterday
+    if (start > now) start.setDate(start.getDate() - 1);
+    return { startISO: start.toISOString(), rest: m[4].trim() };
+}
+
 // Parse an ISO 8601 duration string returned by Clockify (e.g. "PT1H30M", "PT45S").
 function parseDuration(iso) {
     if (!iso) return null;
@@ -61,8 +76,9 @@ function isCancelled(e) {
 // ─── ActivityEntry ────────────────────────────────────────────────────────────
 //
 // St.Entry with two-zone inline typeahead autocomplete (mirrors OngoingFactEntry
-// from Hamster).  Input format:  "description @project"
+// from Hamster).  Input format:  "[HH:MM] description @project"
 //
+//  • Optional HH:MM prefix → used as the start time (for late entry)
 //  • Before @ → prefix-match full history strings from _getActivities()
 //  • After  @ → prefix-match project names from _getProjects(), keeping the
 //               text before @ intact
@@ -76,7 +92,7 @@ class ActivityEntry extends St.Entry {
             name: 'searchEntry',
             can_focus: true,
             track_hover: true,
-            hint_text: _('activity @project\u2026'),
+            hint_text: _('HH:MM activity @project\u2026'),
             style_class: 'search-entry',
         });
         this._getActivities = getActivities;
@@ -397,11 +413,12 @@ class ClockifyIndicator extends PanelMenu.Button {
             const raw = this._activityEntry.get_text().trim();
             if (!raw) return;
 
-            const atIdx = raw.lastIndexOf('@');
+            const { startISO, rest } = parseTimePrefix(raw);
+            const atIdx = rest.lastIndexOf('@');
             let description, projectId = null;
             if (atIdx !== -1) {
-                description = raw.slice(0, atIdx).trim();
-                const projectName = raw.slice(atIdx + 1).trim();
+                description = rest.slice(0, atIdx).trim();
+                const projectName = rest.slice(atIdx + 1).trim();
                 if (projectName) {
                     const existing = this._projects.find(
                         p => p.name.toLowerCase() === projectName.toLowerCase());
@@ -418,10 +435,10 @@ class ClockifyIndicator extends PanelMenu.Button {
                     }
                 }
             } else {
-                description = raw;
+                description = rest;
             }
 
-            const ok = await this._startTimer(description, projectId);
+            const ok = await this._startTimer(description, projectId, startISO);
             if (ok) {
                 this._activityEntry.reset();
                 this.menu.close();
@@ -584,7 +601,7 @@ class ClockifyIndicator extends PanelMenu.Button {
     }
 
     // Returns true on success, false on failure (caller gates menu close / text clear).
-    async _startTimer(description, projectId) {
+    async _startTimer(description, projectId, startISO = null) {
         const apiKey = this._settings.get_string('api-key');
         const wid    = this._settings.get_string('workspace-id');
         if (!apiKey || !wid) {
@@ -594,7 +611,7 @@ class ClockifyIndicator extends PanelMenu.Button {
         // Stop whatever is running first (same as Hamster's AddFact replacing ongoing fact)
         if (this._currentEntry) await this._stopTimerSilent();
         try {
-            const body = { start: new Date().toISOString(), description };
+            const body = { start: startISO ?? new Date().toISOString(), description };
             if (projectId) body.projectId = projectId;
             const entry = await this._apiRequest('POST',
                 `/workspaces/${wid}/time-entries`, body);

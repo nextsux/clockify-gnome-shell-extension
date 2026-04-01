@@ -7,8 +7,8 @@ msgstr ""
 "Language: ja\n"
 "Plural-Forms: nplurals=1; plural=0;\n"
 
-msgid "activity @project…"
-msgstr "作業内容 @プロジェクト…"
+msgid "HH:MM activity @project…"
+msgstr "HH:MM 作業内容 @プロジェクト…"
 
 msgid "h "
 msgstr "時間"
