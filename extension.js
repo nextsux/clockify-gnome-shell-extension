@@ -42,19 +42,46 @@ function elapsedSeconds(isoStart) {
     return Math.floor((Date.now() - new Date(isoStart).getTime()) / 1000);
 }
 
-// Parse an optional "HH:MM" or "HH:MM:SS" time prefix from user input.
-// Returns { startISO, rest } where startISO is a today-anchored ISO 8601 string
-// (or null if no valid prefix was found) and rest is the remaining text.
-function parseTimePrefix(raw) {
-    const m = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s+([\s\S]+)$/);
-    if (!m) return { startISO: null, rest: raw };
+// Build a today-anchored Date from h/m/s components, rolling back to yesterday
+// if the result would be in the future.
+function _todayAt(h, min, sec = 0) {
     const now = new Date();
-    const h = parseInt(m[1]), min = parseInt(m[2]), sec = parseInt(m[3] || 0);
-    if (h > 23 || min > 59 || sec > 59) return { startISO: null, rest: raw };
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, min, sec);
-    // If the parsed time is in the future, assume it belongs to yesterday
-    if (start > now) start.setDate(start.getDate() - 1);
-    return { startISO: start.toISOString(), rest: m[4].trim() };
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, min, sec);
+    if (d > now) d.setDate(d.getDate() - 1);
+    return d;
+}
+
+// Parse an optional time prefix from user input. Supported formats:
+//   "HH:MM description"          → start only (running entry)
+//   "HH:MM-HH:MM description"    → start + end (completed entry)
+//   "HH:MM:SS-HH:MM:SS …"        → same with seconds
+// Returns { startISO, endISO, rest }.
+// startISO / endISO are null when not present; rest is the remaining text.
+function parseTimePrefix(raw) {
+    // Range: HH:MM[-HH:MM]
+    const range = raw.match(
+        /^(\d{1,2}):(\d{2})(?::(\d{2}))?-(\d{1,2}):(\d{2})(?::(\d{2}))?\s+([\s\S]+)$/);
+    if (range) {
+        const [, sh, sm, ss, eh, em, es, rest] = range;
+        const [H1, M1, S1] = [parseInt(sh), parseInt(sm), parseInt(ss || 0)];
+        const [H2, M2, S2] = [parseInt(eh), parseInt(em), parseInt(es || 0)];
+        if (H1 <= 23 && M1 <= 59 && S1 <= 59 && H2 <= 23 && M2 <= 59 && S2 <= 59) {
+            const start = _todayAt(H1, M1, S1);
+            // End is anchored relative to start so overnight ranges work (e.g. 23:50-00:10)
+            const end = new Date(start.getFullYear(), start.getMonth(), start.getDate(), H2, M2, S2);
+            if (end <= start) end.setDate(end.getDate() + 1);
+            return { startISO: start.toISOString(), endISO: end.toISOString(), rest: rest.trim() };
+        }
+    }
+    // Single time: HH:MM
+    const single = raw.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?\s+([\s\S]+)$/);
+    if (single) {
+        const [, h, min, sec, rest] = single;
+        const [H, M, S] = [parseInt(h), parseInt(min), parseInt(sec || 0)];
+        if (H <= 23 && M <= 59 && S <= 59)
+            return { startISO: _todayAt(H, M, S).toISOString(), endISO: null, rest: rest.trim() };
+    }
+    return { startISO: null, endISO: null, rest: raw };
 }
 
 // Parse an ISO 8601 duration string returned by Clockify (e.g. "PT1H30M", "PT45S").
@@ -92,7 +119,7 @@ class ActivityEntry extends St.Entry {
             name: 'searchEntry',
             can_focus: true,
             track_hover: true,
-            hint_text: _('HH:MM activity @project\u2026'),
+            hint_text: _('HH:MM[-HH:MM] activity @project\u2026'),
             style_class: 'search-entry',
         });
         this._getActivities = getActivities;
@@ -413,7 +440,7 @@ class ClockifyIndicator extends PanelMenu.Button {
             const raw = this._activityEntry.get_text().trim();
             if (!raw) return;
 
-            const { startISO, rest } = parseTimePrefix(raw);
+            const { startISO, endISO, rest } = parseTimePrefix(raw);
             const atIdx = rest.lastIndexOf('@');
             let description, projectId = null;
             if (atIdx !== -1) {
@@ -438,7 +465,7 @@ class ClockifyIndicator extends PanelMenu.Button {
                 description = rest;
             }
 
-            const ok = await this._startTimer(description, projectId, startISO);
+            const ok = await this._startTimer(description, projectId, startISO, endISO);
             if (ok) {
                 this._activityEntry.reset();
                 this.menu.close();
@@ -601,19 +628,22 @@ class ClockifyIndicator extends PanelMenu.Button {
     }
 
     // Returns true on success, false on failure (caller gates menu close / text clear).
-    async _startTimer(description, projectId, startISO = null) {
+    async _startTimer(description, projectId, startISO = null, endISO = null) {
         const apiKey = this._settings.get_string('api-key');
         const wid    = this._settings.get_string('workspace-id');
         if (!apiKey || !wid) {
             this._showError(_('Configure API key and workspace in Extension Settings first'));
             return false;
         }
+        const start = startISO ?? new Date().toISOString();
         // Stop whatever is running first — end it exactly at the new entry's start
         // so there is no gap or overlap (Hamster behaviour).
-        if (this._currentEntry) await this._stopTimerSilent(startISO ?? new Date().toISOString());
+        if (this._currentEntry) await this._stopTimerSilent(start);
         try {
-            const body = { start: startISO ?? new Date().toISOString(), description };
+            const body = { start, description };
             if (projectId) body.projectId = projectId;
+            // A range entry (HH:MM-HH:MM) is submitted as already-completed.
+            if (endISO) body.end = endISO;
             const entry = await this._apiRequest('POST',
                 `/workspaces/${wid}/time-entries`, body);
             this._currentEntry = entry;

@@ -7,8 +7,8 @@ msgstr ""
 "Language: tr\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
-msgid "HH:MM activity @project…"
-msgstr "HH:MM aktivite @proje…"
+msgid "HH:MM[-HH:MM] activity @project…"
+msgstr "HH:MM[-HH:MM] aktivite @proje…"
 
 msgid "h "
 msgstr "s "
