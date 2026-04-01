@@ -53,12 +53,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install dependencies
         run: sudo apt-get install -y libglib2.0-bin gettext zip
-      - name: Build dist zip
-        run: make dist
+      - name: Compile schemas and translations
+        run: make compile mo
       - name: Install gnome-extension-uploader
         run: pip install gnome-extension-uploader
       - name: Upload to extensions.gnome.org
-        run: geu publish dist/$UUID.zip
+        # geu packages the extension from the source directory itself;
+        # credentials are passed as flags — GitHub Actions masks their values in logs.
+        run: geu publish --username "$EGO_USERNAME" --password "$EGO_PASSWORD"
         env:
-          GEU_USERNAME: ${{ secrets.EGO_USERNAME }}
-          GEU_PASSWORD: ${{ secrets.EGO_PASSWORD }}
+          EGO_USERNAME: ${{ secrets.EGO_USERNAME }}
+          EGO_PASSWORD: ${{ secrets.EGO_PASSWORD }}
