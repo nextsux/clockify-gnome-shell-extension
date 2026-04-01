@@ -608,8 +608,9 @@ class ClockifyIndicator extends PanelMenu.Button {
             this._showError(_('Configure API key and workspace in Extension Settings first'));
             return false;
         }
-        // Stop whatever is running first (same as Hamster's AddFact replacing ongoing fact)
-        if (this._currentEntry) await this._stopTimerSilent();
+        // Stop whatever is running first — end it exactly at the new entry's start
+        // so there is no gap or overlap (Hamster behaviour).
+        if (this._currentEntry) await this._stopTimerSilent(startISO ?? new Date().toISOString());
         try {
             const body = { start: startISO ?? new Date().toISOString(), description };
             if (projectId) body.projectId = projectId;
@@ -627,13 +628,13 @@ class ClockifyIndicator extends PanelMenu.Button {
         }
     }
 
-    async _stopTimerSilent() {
+    async _stopTimerSilent(endISO = null) {
         try {
             const wid = this._settings.get_string('workspace-id');
             const uid = await this._ensureUserId();
             await this._apiRequest('PATCH',
                 `/workspaces/${wid}/user/${uid}/time-entries`,
-                { end: new Date().toISOString() });
+                { end: endISO ?? new Date().toISOString() });
             this._currentEntry = null;
         } catch { /* ignore — leave currentEntry intact if stop failed */ }
     }
