@@ -8,7 +8,6 @@ permissions: {}
 
 env:
   UUID: clockify-tracker@smoula.net
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   # ── Lint ──────────────────────────────────────────────────────────────────────
@@ -16,8 +15,8 @@ jobs:
     name: ESLint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: lts/*
           cache: npm
@@ -29,13 +28,13 @@ jobs:
     name: Build package
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install dependencies
         run: sudo apt-get install -y libglib2.0-bin gettext zip
       - name: Build dist zip
         run: make dist
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ env.UUID }}-${{ github.sha }}
           path: dist/${{ env.UUID }}.zip
@@ -51,11 +50,11 @@ jobs:
       contents: write
     steps:
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: ${{ env.UUID }}-${{ github.sha }}
       - name: Create release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v2.6.1
         with:
           files: ${{ env.UUID }}.zip
           generate_release_notes: true
@@ -72,7 +71,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
     environment: extensions.gnome.org
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Package and upload to extensions.gnome.org
         uses: murar8/gnome-extensions-action@0.1.1
         with:
