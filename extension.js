@@ -122,10 +122,18 @@ class ActivityEntry extends St.Entry {
             hint_text: _('HH:MM[-HH:MM] activity @project\u2026'),
             style_class: 'search-entry',
         });
-        this._getActivities = getActivities;
-        this._getProjects   = getProjects;
-        this._prevText      = '';
-        this.clutter_text.connect('key-release-event', this._onKeyRelease.bind(this));
+        this._getActivities  = getActivities;
+        this._getProjects    = getProjects;
+        this._prevText       = '';
+        this._keyReleaseId   = this.clutter_text.connect('key-release-event', this._onKeyRelease.bind(this));
+    }
+
+    destroy() {
+        if (this._keyReleaseId) {
+            this.clutter_text.disconnect(this._keyReleaseId);
+            this._keyReleaseId = null;
+        }
+        super.destroy();
     }
 
     reset() {
@@ -286,6 +294,8 @@ class ClockifyIndicator extends PanelMenu.Button {
         this._errorTimeout   = null;
         this._scrollTimeout  = null;
         this._focusTimeout   = null;
+        this._menuSignalId   = null;
+        this._keyPressId     = null;
 
         // Invalidate all cached state when the API key changes, then reload
         this._settingsApiKeyId = this._settings.connect('changed::api-key', () => {
@@ -316,7 +326,7 @@ class ClockifyIndicator extends PanelMenu.Button {
         this._refreshPanelLabel();
 
         // Focus entry and refresh when menu opens
-        this.menu.connect('open-state-changed', (_menu, open) => {
+        this._menuSignalId = this.menu.connect('open-state-changed', (_menu, open) => {
             if (open) {
                 this._onMenuOpen();
             } else {
@@ -359,7 +369,7 @@ class ClockifyIndicator extends PanelMenu.Button {
         // Use key-press-event + EVENT_STOP so the Enter key is consumed here
         // and never reaches the popup menu's key handler (which would close it
         // synchronously, before our async _onEntryActivated can show errors).
-        this._activityEntry.clutter_text.connect('key-press-event', (_actor, event) => {
+        this._keyPressId = this._activityEntry.clutter_text.connect('key-press-event', (_actor, event) => {
             const sym = event.get_key_symbol();
             if (sym === Clutter.KEY_Return || sym === Clutter.KEY_KP_Enter) {
                 this._onEntryActivated();
@@ -736,6 +746,19 @@ class ClockifyIndicator extends PanelMenu.Button {
             this._cancellable.cancel();
             this._cancellable = null;
         }
+        if (this._session) {
+            this._session.abort();
+            this._session = null;
+        }
+
+        if (this._menuSignalId) {
+            this.menu.disconnect(this._menuSignalId);
+            this._menuSignalId = null;
+        }
+        if (this._keyPressId) {
+            this._activityEntry.clutter_text.disconnect(this._keyPressId);
+            this._keyPressId = null;
+        }
 
         if (this._settingsApiKeyId) {
             this._settings.disconnect(this._settingsApiKeyId);
@@ -745,12 +768,24 @@ class ClockifyIndicator extends PanelMenu.Button {
             this._settings.disconnect(this._settingsWsId);
             this._settingsWsId = null;
         }
-        for (const prop of ['_refreshTimeout', '_errorTimeout', '_scrollTimeout', '_focusTimeout']) {
-            if (this[prop]) {
-                GLib.source_remove(this[prop]);
-                this[prop] = null;
-            }
+
+        if (this._refreshTimeout) {
+            GLib.source_remove(this._refreshTimeout);
+            this._refreshTimeout = null;
         }
+        if (this._errorTimeout) {
+            GLib.source_remove(this._errorTimeout);
+            this._errorTimeout = null;
+        }
+        if (this._scrollTimeout) {
+            GLib.source_remove(this._scrollTimeout);
+            this._scrollTimeout = null;
+        }
+        if (this._focusTimeout) {
+            GLib.source_remove(this._focusTimeout);
+            this._focusTimeout = null;
+        }
+
         super.destroy();
     }
 });

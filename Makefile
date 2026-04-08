@@ -80,7 +80,6 @@ zip: compile mo
 	mkdir -p $(DIST_DIR)
 	zip -j $(DIST_DIR)/$(ZIP_NAME) $(SOURCES)
 	zip $(DIST_DIR)/$(ZIP_NAME) schemas/$(notdir $(SCHEMA_SRC))
-	zip $(DIST_DIR)/$(ZIP_NAME) schemas/gschemas.compiled
 	find locale -name '*.mo' 2>/dev/null | while read f; do zip $(DIST_DIR)/$(ZIP_NAME) "$$f"; done
 
 dist: zip
