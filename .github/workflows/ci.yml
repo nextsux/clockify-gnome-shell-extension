@@ -69,17 +69,20 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
     environment: extensions.gnome.org
     steps:
-      - uses: actions/checkout@v4
-      - name: Install dependencies
-        run: sudo apt-get install -y libglib2.0-bin gettext zip
-      - name: Compile schemas and translations
-        run: make compile mo
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ env.UUID }}-${{ github.sha }}
+          path: dist/
       - name: Install gnome-extension-uploader
         run: pip install gnome-extension-uploader
       - name: Upload to extensions.gnome.org
-        # geu packages the extension from the source directory itself;
-        # credentials are passed as flags — GitHub Actions masks their values in logs.
-        run: geu publish --username "$EGO_USERNAME" --password "$EGO_PASSWORD"
+        # Extract the pre-built zip (which contains exactly the right files) into
+        # a clean directory so geu doesn't pick up node_modules, Makefile, etc.
+        run: |
+          mkdir -p /tmp/ego
+          unzip -q dist/$UUID.zip -d /tmp/ego
+          geu publish --directory /tmp/ego --username "$EGO_USERNAME" --password "$EGO_PASSWORD"
         env:
           EGO_USERNAME: ${{ secrets.EGO_USERNAME }}
           EGO_PASSWORD: ${{ secrets.EGO_PASSWORD }}
