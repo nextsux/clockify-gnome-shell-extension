@@ -162,7 +162,7 @@ class ActivityEntry extends St.Entry {
             const prefix  = text.slice(0, atIdx + 1);
             const partial = text.slice(atIdx + 1).toLowerCase();
             for (const p of this._getProjects()) {
-                if (p.name.toLowerCase().startsWith(partial)) {
+                if (!p.archived && p.name.toLowerCase().startsWith(partial)) {
                     this._complete(text, prefix + p.name);
                     return;
                 }
@@ -450,6 +450,16 @@ class ClockifyIndicator extends PanelMenu.Button {
                     const existing = this._projects.find(
                         p => p.name.toLowerCase() === projectName.toLowerCase());
                     if (existing) {
+                        if (existing.archived) {
+                            try {
+                                await this._unarchiveProject(existing.id);
+                                existing.archived = false;
+                            } catch (e) {
+                                if (!isCancelled(e))
+                                    this._showError(_('Failed to unarchive project: %s').replace('%s', e.message));
+                                return;
+                            }
+                        }
                         projectId = existing.id;
                     } else {
                         try {
@@ -531,8 +541,8 @@ class ClockifyIndicator extends PanelMenu.Button {
         if (!wid || !this._settings.get_string('api-key')) return;
         try {
             const raw = await this._apiRequest('GET',
-                `/workspaces/${wid}/projects?page-size=500&archived=false`) || [];
-            this._projects = raw.map(p => ({ id: p.id, name: p.name }));
+                `/workspaces/${wid}/projects?page-size=500`) || [];
+            this._projects = raw.map(p => ({ id: p.id, name: p.name, archived: !!p.archived }));
         } catch (e) {
             if (!isCancelled(e)) this._projects = [];
         }
@@ -623,8 +633,16 @@ class ClockifyIndicator extends PanelMenu.Button {
         if (!wid) throw new Error(_('Workspace not configured'));
         const project = await this._apiRequest('POST',
             `/workspaces/${wid}/projects`, { name, isPublic: false });
-        this._projects.push({ id: project.id, name: project.name });
+        this._projects.push({ id: project.id, name: project.name, archived: false });
         return project.id;
+    }
+
+    // Unarchive an existing project.
+    async _unarchiveProject(projectId) {
+        const wid = this._settings.get_string('workspace-id');
+        if (!wid) throw new Error(_('Workspace not configured'));
+        await this._apiRequest('PUT',
+            `/workspaces/${wid}/projects/${projectId}`, { archived: false });
     }
 
     // Returns true on success, false on failure (caller gates menu close / text clear).
