@@ -289,6 +289,8 @@ class ClockifyIndicator extends PanelMenu.Button {
         this._userId        = null;   // cached user id (reset on api-key change)
         this._activities    = [];     // "description @project" strings for autocomplete
         this._projects      = [];     // all workspace projects [{id, name}]
+        this._projectsLoaded = false; // true once a project load has succeeded this session
+        this._projectsLoadPromise = null; // in-flight project load, for dedup / awaiting
         this._submitting    = false;  // reentrancy guard for timer start/continue
         this._refreshTimeout = null;
         this._errorTimeout   = null;
@@ -303,6 +305,7 @@ class ClockifyIndicator extends PanelMenu.Button {
             this._currentEntry = null;
             this._activities   = [];
             this._projects     = [];
+            this._projectsLoaded = false;
             this._refreshPanelLabel();
             this._loadProjects();
             this._loadCurrentEntry();
@@ -344,6 +347,7 @@ class ClockifyIndicator extends PanelMenu.Button {
         this._settingsWsId = this._settings.connect('changed::workspace-id', () => {
             this._userId   = null;
             this._projects = [];
+            this._projectsLoaded = false;
             this._loadProjects();
         });
 
@@ -457,6 +461,7 @@ class ClockifyIndicator extends PanelMenu.Button {
                 description = rest.slice(0, atIdx).trim();
                 const projectName = rest.slice(atIdx + 1).trim();
                 if (projectName) {
+                    await this._ensureProjectsLoaded();
                     const existing = this._projects.find(
                         p => p.name.toLowerCase() === projectName.toLowerCase());
                     if (existing) {
@@ -544,15 +549,42 @@ class ClockifyIndicator extends PanelMenu.Button {
 
     // ── Data loading ──────────────────────────────────────────────────────────
 
-    // Fetch all workspace projects once on startup / workspace change.
-    // Normalised to {id, name} to match the shape pushed by _createProject.
-    async _loadProjects() {
+    // Load the workspace project cache. Concurrent callers share one in-flight
+    // request. Called on startup / workspace / api-key change, and re-attempted by
+    // _ensureProjectsLoaded() on submit when a prior load failed.
+    _loadProjects() {
+        if (!this._projectsLoadPromise) {
+            this._projectsLoadPromise = this._doLoadProjects()
+                .finally(() => { this._projectsLoadPromise = null; });
+        }
+        return this._projectsLoadPromise;
+    }
+
+    // Await a successful load at least once; retries a previously failed / never-run
+    // load so an empty cache recovers on the next submit instead of staying stuck
+    // (and wrongly trying to create an already-existing project) for the session.
+    async _ensureProjectsLoaded() {
+        if (this._projectsLoaded) return;
+        await this._loadProjects();
+    }
+
+    // Paginated so workspaces with more than one page of projects load fully instead
+    // of being capped. Fetches archived projects too, so `@archivedName` resolves to
+    // an existing project to unarchive. Normalised to {id, name, archived}.
+    async _doLoadProjects() {
         const wid = this._settings.get_string('workspace-id');
         if (!wid || !this._settings.get_string('api-key')) return;
+        const pageSize = 200;
         try {
-            const raw = await this._apiRequest('GET',
-                `/workspaces/${wid}/projects?page-size=500`) || [];
-            this._projects = raw.map(p => ({ id: p.id, name: p.name, archived: !!p.archived }));
+            const all = [];
+            for (let page = 1; page <= 100; page++) {
+                const batch = await this._apiRequest('GET',
+                    `/workspaces/${wid}/projects?page=${page}&page-size=${pageSize}`) || [];
+                all.push(...batch);
+                if (batch.length < pageSize) break;
+            }
+            this._projects = all.map(p => ({ id: p.id, name: p.name, archived: !!p.archived }));
+            this._projectsLoaded = true;
         } catch (e) {
             if (!isCancelled(e)) this._projects = [];
         }
@@ -637,14 +669,30 @@ class ClockifyIndicator extends PanelMenu.Button {
 
     // ── Timer control ─────────────────────────────────────────────────────────
 
-    // Create a new project in the workspace and cache it.
+    // Create a new project in the workspace and cache it. If creation fails because
+    // the project already exists (Clockify answers 403 for a duplicate name), reload
+    // the cache and resolve it by name — a stale/incomplete cache shouldn't surface
+    // as a "Failed to create project" error for a project that is right there.
     async _createProject(name) {
         const wid = this._settings.get_string('workspace-id');
         if (!wid) throw new Error(_('Workspace not configured'));
-        const project = await this._apiRequest('POST',
-            `/workspaces/${wid}/projects`, { name, isPublic: false });
-        this._projects.push({ id: project.id, name: project.name, archived: false });
-        return project.id;
+        try {
+            const project = await this._apiRequest('POST',
+                `/workspaces/${wid}/projects`, { name, isPublic: false });
+            this._projects.push({ id: project.id, name: project.name, archived: false });
+            return project.id;
+        } catch (e) {
+            if (isCancelled(e)) throw e;
+            await this._loadProjects();
+            const existing = this._projects.find(
+                p => p.name.toLowerCase() === name.toLowerCase());
+            if (!existing) throw e;
+            if (existing.archived) {
+                await this._unarchiveProject(existing.id);
+                existing.archived = false;
+            }
+            return existing.id;
+        }
     }
 
     // Unarchive an existing project.
