@@ -204,7 +204,7 @@ class TodaysEntriesWidget extends St.ScrollView {
             layout_manager: new Clutter.GridLayout(),
             reactive: true,
         });
-        const box = new St.BoxLayout({ vertical: true });
+        const box = new St.BoxLayout({ orientation: Clutter.Orientation.VERTICAL });
         box.add_child(this._grid);
         this.add_child(box);
     }
@@ -359,7 +359,7 @@ class ClockifyIndicator extends PanelMenu.Button {
 
     _buildMenu() {
         const factBoxItem = new PopupMenu.PopupBaseMenuItem({ reactive: false });
-        const mainBox = new St.BoxLayout({ vertical: true, style_class: 'hamster-box' });
+        const mainBox = new St.BoxLayout({ orientation: Clutter.Orientation.VERTICAL, style_class: 'hamster-box' });
         factBoxItem.add_child(mainBox);
 
         mainBox.add_child(new St.Label({
